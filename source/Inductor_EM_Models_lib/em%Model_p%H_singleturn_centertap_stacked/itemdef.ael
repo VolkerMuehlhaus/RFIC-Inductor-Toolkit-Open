@@ -1,0 +1,5 @@
+create_item("emModel_pH_singleturn_centertap_stacked","emModel_pH_singleturn_centertap_stacked","X",16,-1,NULL,"Component Parameters",NULL,"%43?global %;%d:%t %# %44?0%:%31?%C%:_net%c%;%;%e %b%r%8?%29?%:%30?%p %:%k%?[%1i]%;=%p %;%;%;%e%e","emModel_pH_singleturn_centertap_stacked","%t%b%r%38?%:\n%30?%s%:%k%?[%1i]%;=%s%;%;%e%e%;","",0,NULL,0,
+create_parm("w","Subnetwork 10 um",66560,"StdFormSet",5,prm("StdForm","10 um")),
+create_parm("s","Subnetwork 10 um",66560,"StdFormSet",5,prm("StdForm","5 um")),
+create_parm("dout","Subnetwork 200 um",66560,"StdFormSet",5,prm("StdForm","200 um")),
+create_parm("N","Subnetwork 2",66560,"StdFormSet",-1,prm("StdForm","2 ")));

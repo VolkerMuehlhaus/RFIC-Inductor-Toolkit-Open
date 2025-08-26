@@ -1,0 +1,7 @@
+# lib.defs for Muehlhaus Inductor PDK
+DEFINE Inductor_Generic_Layers_IC_lib ./Inductor_Generic_Layers_IC_lib
+ASSIGN Inductor_Generic_Layers_IC_lib libMode shared
+DEFINE Inductor_Shapes_lib ./Inductor_Shapes_lib
+ASSIGN Inductor_Shapes_lib libMode readOnly
+DEFINE Inductor_EM_Models_lib Inductor_EM_Models_lib
+ASSIGN Inductor_EM_Models_lib libMode shared

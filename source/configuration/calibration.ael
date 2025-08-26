@@ -1,0 +1,69 @@
+// calibration factors for synthesis 
+
+
+// symmetric octagon, single layer
+decl K1_octadiff = 2.15522;
+decl K2_octadiff = 3.61868;
+decl L0_octadiff = -1.5482e-011;
+if (groundframe_extend_feedline && draw_groundframe) L0_octadiff = -1.5482e-011;
+
+// symmtric octagon stacked
+decl K1_octadiff_stacked = 2.085;
+decl K2_octadiff_stacked = 3.265;
+decl L0_octadiff_stacked = -1.35e-011;
+if (groundframe_extend_feedline && draw_groundframe) L0_octadiff_stacked = -1.35e-011;
+
+// single ended octagon, single layer
+decl K1_octasingle = 2.621;
+decl K2_octasingle = 5.014;
+decl L0_octasingle = 5.5e-012;
+if (groundframe_extend_feedline && draw_groundframe) L0_octasingle = 5.5e-012;
+
+// symmetric square, single layer
+decl K1_squarediff = 2.456;
+decl K2_squarediff = 3.583;
+decl L0_squarediff = -2.06e-11;
+if (groundframe_extend_feedline && draw_groundframe) L0_squarediff = -2.06e-11;
+
+// single ended square, single layer
+decl K1_squaresingle = 2.755;
+decl K2_squaresingle = 4.401;
+decl L0_squaresingle = 5.6e-11;
+if (groundframe_extend_feedline && draw_groundframe) L0_squaresingle = 5.6e-11;
+
+// picoHenry N=1, single layer
+decl K1_pH = 2.755;
+decl K2_pH = 4.401;
+decl L0_pH = 5.6e-11;
+if (groundframe_extend_feedline && draw_groundframe) L0_pH = 5.6e-11;
+
+// picoHenry N=1, stacked
+decl K1_pH_stacked = 2.572;
+decl K2_pH_stacked = 4.653;
+decl L0_pH_stacked = 7.54e-12;
+if (groundframe_extend_feedline && draw_groundframe) L0_pH_stacked = 7.54e-12;
+
+// interleaved octagon 1:1 transformer
+decl K1_octa_interleaved = K1_octadiff;
+decl K2_octa_interleaved = K2_octadiff;
+decl L0_octa_interleaved = L0_octadiff;
+
+// interleaved octagon 1:1 transformer stacked metal
+decl K1_octa_interleaved_stacked = K1_octadiff_stacked;
+decl K2_octa_interleaved_stacked = K2_octadiff_stacked;
+decl L0_octa_interleaved_stacked = L0_octadiff_stacked;
+
+// interleaved square 1:1 transformer
+decl K1_square_interleaved = K1_squarediff;
+decl K2_square_interleaved = K2_squarediff;
+decl L0_square_interleaved = L0_squarediff;
+
+// interleaved square 1:1 transformer, stacked metal
+decl K1_square_interleaved_stacked = K1_squarediff;
+decl K2_square_interleaved_stacked = K2_squarediff;
+decl L0_square_interleaved_stacked = L0_squarediff;
+
+// overlay octagon 1:1 transformer
+decl K1_octa_overlay = K1_octadiff;
+decl K2_octa_overlay = K2_octadiff;
+decl L0_octa_overlay = L0_octadiff;

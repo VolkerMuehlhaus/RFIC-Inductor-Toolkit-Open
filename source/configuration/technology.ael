@@ -1,0 +1,152 @@
+
+
+// Muehlhaus Inductor Toolkit (C) 2013-2025 Dr. Muehlhaus Consulting & Software GmbH
+// 
+// This settings file has the technology-specific data for layers and dimensions
+// Modify for other technologies as approriate.
+
+
+
+// ================== start technology settings ======================
+
+  decl PDK_Menu_Name = "Inductor Toolkit GPDK Open";   // Name of PDK in ADS menu
+  decl Toolkit_Layout_Options = "";
+  
+  // Optional, to make things more readable, we assign variable names for 
+  // the technology layers first, and use these variable names below.
+    
+  decl Metal6 = 35;
+  decl Metal5 = 33;
+  decl Metal4 = 31;
+  decl Metal3 = 11;
+  decl Metal2 = 9;
+  decl Metal1 = 7;
+
+  decl Via5 = 34;
+  decl Via4 = 32;
+  decl Via3 = 30;
+  decl Via2 = 10;
+  decl Via1 = 8;
+  decl Cont = 6;
+  
+
+// =========================== Layer definitions ======================
+
+  // Now, we assign the ADS layer numbers for layout artwork.
+  // If the above section is properly defined, use those variable names. Otherwise, use the ADS layer numbers.
+
+
+  // All inductors
+  decl spiral_layer 	= Metal6;	// spiral turns
+  decl crossover_layer 	= Metal5;	// underpass for octagon crossover, also used as second metal for stacked inductors
+  decl underpass_layer  = Metal4;	// underpass for center tap for SG13
+  decl underpass2_layer	= Metal3;	// second underpass 
+
+
+  decl via_layer_spiral_crossover  	= Via5;		// via from spiral to crossover level
+  decl via_layer_crossover_underpass 	= Via4;		// via from crossover level to underpass
+  decl via_layer_underpass_underpass2 	= Via3;		// via from underpass level to second underpass
+	
+  // Octagon patterned ground shield
+  decl pgs_layer = Metal1;			// patterned ground shield
+
+
+// =========================== Metal line dimension rules ======================
+
+  decl min_linewidth = 0.5;  // layout rule 
+  decl max_linewidth = 30;   // layout rule 
+  decl min_spacing   = 0.5;  // layout rule 
+
+ 
+// =========================== Underpass dimension rules ======================
+
+  
+  // underpass width is w*underpass_width_factor, but no more than max_underpass_width
+  decl underpass_width_factor = 2;		// underpass same width as metal line 
+  // maximum width used in underpass 
+  decl max_underpass_width = 20; 		// underpass no wider than 20 micron
+  
+
+// =========================== Via dimension rules ======================
+//
+// This section defines the size of vias used to create via arrays.
+  
+  decl define_via_array= TRUE; // TRUE means vias are drawn as an array. FALSE means draw only via bounding box.
+ 
+  // If define_via_array is TRUE, all entries below MUST be defined for all mapped via layers.
+  
+  // size of single via 
+  defun mi_get_via_size (layernum) {  
+    if (layernum == Cont) return 0.2;
+    if (layernum == Via1) return 0.2;
+    if (layernum == Via2) return 0.2;
+    if (layernum == Via3) return 0.2;
+    if (layernum == Via4) return 0.2;
+    if (layernum == Via5) return 0.2;
+  }  
+
+  // distance between two single vias in array
+  defun mi_get_via_gap (layernum) {  
+    if (layernum == Cont) return 0.2; 
+    if (layernum == Via1) return 0.3; 
+    if (layernum == Via2) return 0.3; 
+    if (layernum == Via3) return 0.3; 
+    if (layernum == Via4) return 0.3; 
+    if (layernum == Via5) return 0.3; 
+  }  
+
+  // distance from single via edge to surrounding metal edge
+  defun mi_get_via_margin (layernum) {  
+    if (layernum == Cont) return 0.1; 
+    if (layernum == Via1) return 0.1; 
+    if (layernum == Via2) return 0.1; 
+    if (layernum == Via3) return 0.1; 
+    if (layernum == Via4) return 0.1; 
+    if (layernum == Via5) return 0.1; 
+  }  
+
+
+// =========================== PIN layer/purpose handling, these functions are optional  ======================
+
+  defun get_pin_shape_layer (layer_number)
+  {
+    // input parameter is the layer number (=GDSII stream number)
+    // return is the ADS layerid for the corresponding pin layer-purpose-pair 
+    // example code to draw area pins on same layer, but purpose 2 for pin:
+    // return db_layerid (layer_number, 2);  
+    // Area pins can be skipped/surpressed if this function is removed 
+    
+    return db_layerid (layer_number, -1);  // same layer,  use purpose -1
+   
+  }    
+
+
+  defun get_pin_label_layer ()
+  {
+    // return is the ADS layerid for the layer-purpose-pair for pin text (labels)
+    // Pin text labels can be skipped/surpressed if this function is removed 
+      
+    return db_layerid (199);  
+  }    
+
+
+// =========================== Extra layers, dimension of extra layer boundary ======================
+
+  // Extra layers that must appear under inductors, like PWellBlock, NoFiller, ...
+  // list("102:-1", "10:2") means: draw on extra layers 102 purpose -1 and layer 10 purpose 2
+  // list() means: dont't draw on any extra layers 
+
+  decl extra_inductor_layers_list = list("102:-1");   
+
+
+  // Distance between outline on extra layers (e.g. PWellBlock, NoFiller) and the inductor 
+  decl extra_layer_extension = 5;		
+
+
+ 
+// =========================== DATABASE resolution (DBU) for grid snapping  ======================
+
+
+  decl default_database_resolution = 1000;   // default database resolution if we can't get it from library
+  
+

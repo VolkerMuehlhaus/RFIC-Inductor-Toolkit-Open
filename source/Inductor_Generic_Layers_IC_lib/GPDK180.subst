@@ -1,0 +1,46 @@
+<!DOCTYPE Substrate>
+<SubstrateModel>
+    <stack BAL_TYPE="NONE" BAL_NUM="0">
+        <material materialname="AIR" BAL_TYPE="INHERIT" BAL_NUM="0"/>
+        <interface thick="0" thickunit="micron" materialname="PERFECT_CONDUCTOR" BAL_TYPE="NONE" BAL_NUM="0" groundplane="1"/>
+        <material thick="500" thickunit="micron" materialname="Silicon" BAL_TYPE="INHERIT" BAL_NUM="0"/>
+        <interface thick="" thickunit="micron" materialname="" BAL_TYPE="INHERIT" BAL_NUM="0"/>
+        <material thick="0.35" thickunit="micron" materialname="sub" BAL_TYPE="INHERIT" BAL_NUM="0"/>
+        <interface thick="" thickunit="micron" materialname="" BAL_TYPE="INHERIT" BAL_NUM="0"/>
+        <material thick="0.5" thickunit="micron" materialname="ox1" BAL_TYPE="INHERIT" BAL_NUM="0"/>
+        <interface thick="" thickunit="micron" materialname="" BAL_TYPE="INHERIT" BAL_NUM="0"/>
+        <material thick="0.8" thickunit="micron" materialname="ox_mixed_eff" BAL_TYPE="INHERIT" BAL_NUM="0"/>
+        <interface thick="" thickunit="micron" materialname="" BAL_TYPE="INHERIT" BAL_NUM="0"/>
+        <material thick="0.8" thickunit="micron" materialname="ox_mixed_eff" BAL_TYPE="INHERIT" BAL_NUM="0"/>
+        <interface thick="" thickunit="micron" materialname="" BAL_TYPE="INHERIT" BAL_NUM="0"/>
+        <material thick="0.8" thickunit="micron" materialname="ox_mixed_eff" BAL_TYPE="INHERIT" BAL_NUM="0"/>
+        <interface thick="" thickunit="micron" materialname="" BAL_TYPE="INHERIT" BAL_NUM="0"/>
+        <material thick="0.8" thickunit="micron" materialname="ox_mixed_eff" BAL_TYPE="INHERIT" BAL_NUM="0"/>
+        <interface thick="" thickunit="micron" materialname="" BAL_TYPE="INHERIT" BAL_NUM="0"/>
+        <material thick="0.8" thickunit="micron" materialname="ox_mixed_eff" BAL_TYPE="INHERIT" BAL_NUM="0"/>
+        <interface thick="" thickunit="micron" materialname="" BAL_TYPE="INHERIT" BAL_NUM="0"/>
+        <material thick="1" thickunit="micron" materialname="pass1" BAL_TYPE="INHERIT" BAL_NUM="0"/>
+        <interface thick="" thickunit="micron" materialname="" BAL_TYPE="INHERIT" BAL_NUM="0"/>
+        <material thick="0.7" thickunit="micron" materialname="pass2" BAL_TYPE="INHERIT" BAL_NUM="0"/>
+        <interface thick="" thickunit="micron" materialname="" BAL_TYPE="INHERIT" BAL_NUM="0"/>
+        <material materialname="AIR" BAL_TYPE="INHERIT" BAL_NUM="0"/>
+    </stack>
+    <layers>
+        <layer index="2" precedence="-1" expand="1" thick="0.2" bottomrough="" pinsOnly="0" angle="90" thickunit="micron" subtype="0" materialname="Poly" negative="0" toprough="" sheet="0" layer="3"/>
+        <layer index="3" precedence="-1" expand="1" thick="0.53" bottomrough="" pinsOnly="0" angle="90" thickunit="micron" subtype="0" materialname="Metal1" negative="0" toprough="" sheet="0" layer="7"/>
+        <layer index="4" precedence="-1" expand="1" thick="0.53" bottomrough="" pinsOnly="0" angle="90" thickunit="micron" subtype="0" materialname="Metal2" negative="0" toprough="" sheet="0" layer="9"/>
+        <layer index="5" precedence="-1" expand="1" thick="0.53" bottomrough="" pinsOnly="0" angle="90" thickunit="micron" subtype="0" materialname="Metal3" negative="0" toprough="" sheet="0" layer="11"/>
+        <layer index="6" precedence="-1" expand="1" thick="0.53" bottomrough="" pinsOnly="0" angle="90" thickunit="micron" subtype="0" materialname="Metal4" negative="0" toprough="" sheet="0" layer="31"/>
+        <layer index="7" precedence="-1" expand="1" thick="0.6" bottomrough="" pinsOnly="0" angle="90" thickunit="micron" subtype="0" materialname="Metal5" negative="0" toprough="" sheet="0" layer="33"/>
+        <layer index="8" precedence="-1" expand="1" thick="0.99" bottomrough="" pinsOnly="0" angle="90" thickunit="micron" subtype="0" materialname="Metal6" negative="0" toprough="" sheet="0" layer="35"/>
+    </layers>
+    <vias>
+        <via precedence="-1" platingenabled="0" index1="7" platingdielectricmaterial="" index2="8" platingthickness="" platingthicknessunit="micron" subtype="0" rough="" materialname="Via" layer="34"/>
+        <via precedence="-1" platingenabled="0" index1="6" platingdielectricmaterial="" index2="7" platingthickness="" platingthicknessunit="micron" subtype="0" rough="" materialname="Via" layer="32"/>
+        <via precedence="-1" platingenabled="0" index1="5" platingdielectricmaterial="" index2="6" platingthickness="" platingthicknessunit="micron" subtype="0" rough="" materialname="Via" layer="30"/>
+        <via precedence="-1" platingenabled="0" index1="4" platingdielectricmaterial="" index2="5" platingthickness="" platingthicknessunit="micron" subtype="0" rough="" materialname="Via" layer="10"/>
+        <via precedence="-1" platingenabled="0" index1="3" platingdielectricmaterial="" index2="4" platingthickness="" platingthicknessunit="micron" subtype="0" rough="" materialname="Via" layer="8"/>
+        <via precedence="-1" platingenabled="0" index1="2" platingdielectricmaterial="" index2="3" platingthickness="" platingthicknessunit="micron" subtype="0" rough="" materialname="Via" layer="6"/>
+    </vias>
+    <substrates/>
+</SubstrateModel>

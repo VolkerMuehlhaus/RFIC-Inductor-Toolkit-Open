@@ -1,0 +1,7 @@
+RFIC Inductor Toolkit Open
+(c) Dr. Muehlhaus Consulting & Software GmbH
+
+Generic Version, technology can be customized
+Date: 26 August 2025
+Revision: 2.3.1
+

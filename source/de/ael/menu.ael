@@ -1,0 +1,894 @@
+// custom menu
+
+
+// global variables for menu item references
+decl 	FineTuneItem,
+	CreateLumpedModelItem; 
+
+
+// functions
+defun cb_SetTargetValue(cbData, callData, winInstP)
+{
+  
+  // indicate that previous fine-tune results are outdated
+  // Muehlhaus_write_string("/inductor_toolkit/finetune_completed.csv","0");
+  
+  decl mode = Muehlhaus_read_string("/inductor_toolkit/mode.csv");
+  
+  decl target_dds_file = target_dds_file = "set_target_value.dds";  // default is inductor design
+  if (mode == "interleaved") target_dds_file = "set_interleaved_target_value.dds";
+  if (mode == "overlay") target_dds_file = "set_overlay_target_value.dds";
+  
+  
+  // if dds file for target values does not exist in workspace, copy it there
+  decl targetvalue_workspace = strcat(getcwd(), "/", target_dds_file);
+  if (!ael_file_exists(targetvalue_workspace)) {
+    decl targetvalue_PDK = strcat(MUEHLHAUS_INDUCTOR_PDK_PATH, "dds/",target_dds_file);
+    gfile_copy(targetvalue_PDK, targetvalue_workspace); 
+  }  
+
+
+  // Check database resolution again. 
+  // This is because we might not have an open workspace library when Inductor Toolkit loaded,
+  // depending on the load order in lib.defs
+  
+  database_resolution = get_database_resolution ();
+  fputs(stderr, strcat("Checking database resolution again, database_resolution = ", identify_value(database_resolution)));
+
+  decl dds_file_with_path = strcat(getcwd(), "/", target_dds_file);
+  
+	// open data display window to enter target values
+	de_open_datadisplay(dds_file_with_path);
+    
+}
+
+
+defun set_mode_inductor () {
+  // change menu items for inductor design
+  api_menu_manage(FineTuneItem,TRUE);
+  api_menu_manage(CreateLumpedModelItem, TRUE);
+  Muehlhaus_write_string("/inductor_toolkit/mode.csv","inductor");
+}
+
+defun set_mode_transformer (transformer_type) {
+  // change menu items for transformer design
+  api_menu_manage(FineTuneItem,FALSE);
+  api_menu_manage(CreateLumpedModelItem, FALSE);
+  Muehlhaus_write_string("/inductor_toolkit/mode.csv",transformer_type);
+}
+
+
+defun cb_LayoutOcta () {
+  // some steps are only possible after fine tune
+  Muehlhaus_write_string("/inductor_toolkit/finetune_completed.csv","0");
+  // define what model we are working on
+  Muehlhaus_write_string("/inductor_toolkit/emModel.csv","emModel_octa");
+  Muehlhaus_write_string("/inductor_toolkit/layoutcell.csv","Inductor_Shapes_lib:ind_diff_2port");
+  Muehlhaus_write_string("/inductor_toolkit/layoutname.csv","OctaDiff");
+  Muehlhaus_write_string("/inductor_toolkit/centertap.csv","0");
+  Muehlhaus_write_string("/inductor_toolkit/shield.csv","0");
+  Muehlhaus_write_string("/inductor_toolkit/shape.csv","octagon_diff");
+  Muehlhaus_write_var("/inductor_toolkit/K1.csv",K1_octadiff);  	
+  Muehlhaus_write_var("/inductor_toolkit/K2.csv",K2_octadiff);
+  Muehlhaus_write_var("/inductor_toolkit/L0.csv",L0_octadiff);
+  Muehlhaus_write_string("/inductor_toolkit/Nfrac.csv","0");   // no extra fractional turns 
+  Muehlhaus_InductorPDK_set_current_layout_info ("Octagon diff.");
+  de_info("Layout option is set to Octagon differential!");
+  set_mode_inductor ();
+}
+
+defun cb_LayoutOctaStacked () {
+  // some steps are only possible after fine tune
+  Muehlhaus_write_string("/inductor_toolkit/finetune_completed.csv","0");
+  // define what model we are working on
+  Muehlhaus_write_string("/inductor_toolkit/emModel.csv","emModel_octa_stacked");
+  Muehlhaus_write_string("/inductor_toolkit/layoutcell.csv","Inductor_Shapes_lib:ind_diff_stacked_2port");
+  Muehlhaus_write_string("/inductor_toolkit/layoutname.csv","OctaDiffStacked");
+  Muehlhaus_write_string("/inductor_toolkit/centertap.csv","0");
+  Muehlhaus_write_string("/inductor_toolkit/shield.csv","0");
+  Muehlhaus_write_string("/inductor_toolkit/shape.csv","octagon_diff");
+  Muehlhaus_write_var("/inductor_toolkit/K1.csv",K1_octadiff_stacked);		
+  Muehlhaus_write_var("/inductor_toolkit/K2.csv",K2_octadiff_stacked);
+  Muehlhaus_write_var("/inductor_toolkit/L0.csv",L0_octadiff_stacked);
+  Muehlhaus_write_string("/inductor_toolkit/Nfrac.csv","0");   // no extra fractional turns 
+  Muehlhaus_InductorPDK_set_current_layout_info ("Octagon diff. stacked");
+  de_info("Layout option is set to Octagon differential stacked!");
+  set_mode_inductor ();
+}
+
+defun cb_LayoutOctaCentertap () {
+  // some steps are only possible after fine tune
+  Muehlhaus_write_string("/inductor_toolkit/finetune_completed.csv","0");
+  // define what model we are working on
+  Muehlhaus_write_string("/inductor_toolkit/emModel.csv","emModel_octa_centertap");
+  Muehlhaus_write_string("/inductor_toolkit/layoutcell.csv","Inductor_Shapes_lib:ind_diff_3port");
+  Muehlhaus_write_string("/inductor_toolkit/layoutname.csv","OctaDiffTap");
+  Muehlhaus_write_string("/inductor_toolkit/centertap.csv","1");
+  Muehlhaus_write_string("/inductor_toolkit/shield.csv","0");
+  Muehlhaus_write_string("/inductor_toolkit/shape.csv","octagon_diff");
+  Muehlhaus_write_var("/inductor_toolkit/K1.csv",K1_octadiff);  	
+  Muehlhaus_write_var("/inductor_toolkit/K2.csv",K2_octadiff);
+  Muehlhaus_write_var("/inductor_toolkit/L0.csv",L0_octadiff);
+  Muehlhaus_write_string("/inductor_toolkit/Nfrac.csv","0");   // no extra fractional turns 
+  Muehlhaus_InductorPDK_set_current_layout_info ("Octagon diff. centertap");
+  de_info("Layout option is set to Octagon differential with centertap!");
+  set_mode_inductor ();
+}
+
+defun cb_LayoutOctaCentertapStacked () {
+  // some steps are only possible after fine tune
+  Muehlhaus_write_string("/inductor_toolkit/finetune_completed.csv","0");
+  // define what model we are working on
+  Muehlhaus_write_string("/inductor_toolkit/emModel.csv","emModel_octa_centertap_stacked");
+  Muehlhaus_write_string("/inductor_toolkit/layoutcell.csv","Inductor_Shapes_lib:ind_diff_stacked_3port");
+  Muehlhaus_write_string("/inductor_toolkit/layoutname.csv","OctaDiffStackedTap");
+  Muehlhaus_write_string("/inductor_toolkit/centertap.csv","1");
+  Muehlhaus_write_string("/inductor_toolkit/shield.csv","0");
+  Muehlhaus_write_string("/inductor_toolkit/shape.csv","octagon_diff");
+  Muehlhaus_write_var("/inductor_toolkit/K1.csv",K1_octadiff_stacked);		
+  Muehlhaus_write_var("/inductor_toolkit/K2.csv",K2_octadiff_stacked);
+  Muehlhaus_write_var("/inductor_toolkit/L0.csv",L0_octadiff_stacked);
+  Muehlhaus_write_string("/inductor_toolkit/Nfrac.csv","0");   // no extra fractional turns 
+  Muehlhaus_InductorPDK_set_current_layout_info ("Octagon diff. centertap stacked");
+  de_info("Layout option is set to Octagon differential stacked with centertap!");
+  set_mode_inductor ();
+}
+
+defun cb_LayoutOctaPGS () {
+  // some steps are only possible after fine tune
+  Muehlhaus_write_string("/inductor_toolkit/finetune_completed.csv","0");
+  // define what model we are working on
+  Muehlhaus_write_string("/inductor_toolkit/emModel.csv","emModel_octa_groundshield");
+  Muehlhaus_write_string("/inductor_toolkit/layoutcell.csv","Inductor_Shapes_lib:ind_diff_pgs_2port");
+  Muehlhaus_write_string("/inductor_toolkit/layoutname.csv","OctaDiffShield");
+  Muehlhaus_write_string("/inductor_toolkit/centertap.csv","0");
+  Muehlhaus_write_string("/inductor_toolkit/shield.csv","1");
+  Muehlhaus_write_string("/inductor_toolkit/shape.csv","octagon_diff");
+  Muehlhaus_write_var("/inductor_toolkit/K1.csv",K1_octadiff);  	
+  Muehlhaus_write_var("/inductor_toolkit/K2.csv",K2_octadiff);
+  Muehlhaus_write_var("/inductor_toolkit/L0.csv",L0_octadiff);
+  Muehlhaus_write_string("/inductor_toolkit/Nfrac.csv","0");   // no extra fractional turns 
+  Muehlhaus_InductorPDK_set_current_layout_info ("Octagon diff. groundshield");
+  de_info("Layout option is set to Octagon differential groundshield!");
+  set_mode_inductor ();
+}
+
+defun cb_LayoutOctaCentertapPGS () {
+  // some steps are only possible after fine tune
+  Muehlhaus_write_string("/inductor_toolkit/finetune_completed.csv","0");
+  // define what model we are working on
+  Muehlhaus_write_string("/inductor_toolkit/emModel.csv","emModel_octa_centertap_groundshield");
+  Muehlhaus_write_string("/inductor_toolkit/layoutcell.csv","Inductor_Shapes_lib:ind_diff_pgs_3port");
+  Muehlhaus_write_string("/inductor_toolkit/layoutname.csv","OctaDiffShieldTap");
+  Muehlhaus_write_string("/inductor_toolkit/centertap.csv","1");
+  Muehlhaus_write_string("/inductor_toolkit/shield.csv","1");
+  Muehlhaus_write_string("/inductor_toolkit/shape.csv","octagon_diff");
+  Muehlhaus_write_var("/inductor_toolkit/K1.csv",K1_octadiff);  	
+  Muehlhaus_write_var("/inductor_toolkit/K2.csv",K2_octadiff);
+  Muehlhaus_write_var("/inductor_toolkit/L0.csv",L0_octadiff);
+  Muehlhaus_write_string("/inductor_toolkit/Nfrac.csv","0");   // no extra fractional turns 
+  Muehlhaus_InductorPDK_set_current_layout_info ("Octagon diff. groundshield centertap");
+  de_info("Layout option is set to Octagon differential groundshield with centertap!");
+  set_mode_inductor ();
+
+}
+
+defun cb_LayoutOctaCentertapStackedPGS () {
+  // some steps are only possible after fine tune
+  Muehlhaus_write_string("/inductor_toolkit/finetune_completed.csv","0");
+  // define what model we are working on
+  Muehlhaus_write_string("/inductor_toolkit/emModel.csv","emModel_octa_centertap_stacked_groundshield");
+  Muehlhaus_write_string("/inductor_toolkit/layoutcell.csv","Inductor_Shapes_lib:ind_diff_stacked_pgs_3port");
+  Muehlhaus_write_string("/inductor_toolkit/layoutname.csv","OctaDiffStackedShieldTap");
+  Muehlhaus_write_string("/inductor_toolkit/centertap.csv","1");
+  Muehlhaus_write_string("/inductor_toolkit/shield.csv","1");
+  Muehlhaus_write_string("/inductor_toolkit/shape.csv","octagon_diff");
+  Muehlhaus_write_var("/inductor_toolkit/K1.csv",K1_octadiff_stacked);  	
+  Muehlhaus_write_var("/inductor_toolkit/K2.csv",K2_octadiff_stacked);
+  Muehlhaus_write_var("/inductor_toolkit/L0.csv",L0_octadiff_stacked);
+  Muehlhaus_write_string("/inductor_toolkit/Nfrac.csv","0");   // no extra fractional turns 
+  Muehlhaus_InductorPDK_set_current_layout_info ("Octagon diff. stacked groundshield centertap");
+  de_info("Layout option is set to Octagon differential stacked groundshield with centertap!");
+  set_mode_inductor ();
+
+}
+
+
+defun cb_LayoutOctaSingle () {  
+  // some steps are only possible after fine tune
+  Muehlhaus_write_string("/inductor_toolkit/finetune_completed.csv","0");
+  // define what model we are working on
+  Muehlhaus_write_string("/inductor_toolkit/emModel.csv","emModel_octa_single");
+  Muehlhaus_write_string("/inductor_toolkit/layoutcell.csv","Inductor_Shapes_lib:ind_octa");
+  Muehlhaus_write_string("/inductor_toolkit/layoutname.csv","OctaSingle");
+  Muehlhaus_write_string("/inductor_toolkit/centertap.csv","0");
+  Muehlhaus_write_string("/inductor_toolkit/shield.csv","0");
+  Muehlhaus_write_string("/inductor_toolkit/shape.csv","octagon_single");
+  Muehlhaus_write_var("/inductor_toolkit/K1.csv",K1_octasingle);  	// K1, K2, L0 from Generic III-V calibration 15.05.2017
+  Muehlhaus_write_var("/inductor_toolkit/K2.csv",K2_octasingle);
+  Muehlhaus_write_var("/inductor_toolkit/L0.csv",L0_octasingle);
+  Muehlhaus_write_string("/inductor_toolkit/Nfrac.csv","0.5");   // internally add 0.5 turns for exit direction 180 deg
+  Muehlhaus_InductorPDK_set_current_layout_info ("Octagon single");
+  de_info("Layout option is set to Octagon single ended!");
+  set_mode_inductor ();
+}
+
+
+defun cb_LayoutSquareDiff () {
+  // some steps are only possible after fine tune
+  Muehlhaus_write_string("/inductor_toolkit/finetune_completed.csv","0");
+  // define what model we are working on
+  Muehlhaus_write_string("/inductor_toolkit/emModel.csv","emModel_square_diff");
+  Muehlhaus_write_string("/inductor_toolkit/layoutcell.csv","Inductor_Shapes_lib:ind_square_diff_2port");
+  Muehlhaus_write_string("/inductor_toolkit/layoutname.csv","SquareDiff");
+  Muehlhaus_write_string("/inductor_toolkit/centertap.csv","0");
+  Muehlhaus_write_string("/inductor_toolkit/shield.csv","0");
+  Muehlhaus_write_string("/inductor_toolkit/shape.csv","square_diff");
+  Muehlhaus_write_var("/inductor_toolkit/K1.csv",K1_squarediff);		
+  Muehlhaus_write_var("/inductor_toolkit/K2.csv",K2_squarediff);
+  Muehlhaus_write_var("/inductor_toolkit/L0.csv",L0_squarediff);
+  Muehlhaus_write_string("/inductor_toolkit/Nfrac.csv","0");   // no extra fractional turns 
+  Muehlhaus_InductorPDK_set_current_layout_info ("Square diff.");
+  de_info("Layout option is set to Square differential!");
+  set_mode_inductor ();
+}
+
+
+defun cb_LayoutSquareDiffCentertap () {
+  // some steps are only possible after fine tune
+  Muehlhaus_write_string("/inductor_toolkit/finetune_completed.csv","0");
+  // define what model we are working on
+  Muehlhaus_write_string("/inductor_toolkit/emModel.csv","emModel_square_diff_centertap");
+  Muehlhaus_write_string("/inductor_toolkit/layoutcell.csv","Inductor_Shapes_lib:ind_square_diff_3port");
+  Muehlhaus_write_string("/inductor_toolkit/layoutname.csv","SquareDiffTap");
+  Muehlhaus_write_string("/inductor_toolkit/centertap.csv","1");
+  Muehlhaus_write_string("/inductor_toolkit/shield.csv","0");
+  Muehlhaus_write_string("/inductor_toolkit/shape.csv","square_diff");
+  Muehlhaus_write_var("/inductor_toolkit/K1.csv",K1_squarediff);		
+  Muehlhaus_write_var("/inductor_toolkit/K2.csv",K2_squarediff);
+  Muehlhaus_write_var("/inductor_toolkit/L0.csv",L0_squarediff);
+  Muehlhaus_write_string("/inductor_toolkit/Nfrac.csv","0");   // no extra fractional turns 
+  Muehlhaus_InductorPDK_set_current_layout_info ("Square diff. centertap");
+  de_info("Layout option is set to Square differential with centertap!");
+  set_mode_inductor ();
+}
+
+defun cb_LayoutSquareSingle0 () {
+  // some steps are only possible after fine tune
+  Muehlhaus_write_string("/inductor_toolkit/finetune_completed.csv","0");
+  // define what model we are working on
+  Muehlhaus_write_string("/inductor_toolkit/emModel.csv","emModel_square_single");
+  Muehlhaus_write_string("/inductor_toolkit/layoutcell.csv","Inductor_Shapes_lib:ind_square");
+  Muehlhaus_write_string("/inductor_toolkit/layoutname.csv","SquareSingle");
+  Muehlhaus_write_string("/inductor_toolkit/centertap.csv","0");
+  Muehlhaus_write_string("/inductor_toolkit/shield.csv","0");
+  Muehlhaus_write_string("/inductor_toolkit/shape.csv","square_single");
+  Muehlhaus_write_var("/inductor_toolkit/K1.csv",K1_squaresingle);		// 
+  Muehlhaus_write_var("/inductor_toolkit/K2.csv",K2_squaresingle);
+  Muehlhaus_write_var("/inductor_toolkit/L0.csv",L0_squaresingle);
+  Muehlhaus_write_string("/inductor_toolkit/Nfrac.csv","0");   // no extra fractional turns 
+  Muehlhaus_InductorPDK_set_current_layout_info ("Square single ended 0 deg");
+  de_info("Layout option is set to Square single ended!");
+  set_mode_inductor ();
+}
+
+defun cb_LayoutSquareSingle90 () {
+  // some steps are only possible after fine tune
+  Muehlhaus_write_string("/inductor_toolkit/finetune_completed.csv","0");
+  // define what model we are working on
+  Muehlhaus_write_string("/inductor_toolkit/emModel.csv","emModel_square_single");
+  Muehlhaus_write_string("/inductor_toolkit/layoutcell.csv","Inductor_Shapes_lib:ind_square");
+  Muehlhaus_write_string("/inductor_toolkit/layoutname.csv","SquareSingle");
+  Muehlhaus_write_string("/inductor_toolkit/centertap.csv","0");
+  Muehlhaus_write_string("/inductor_toolkit/shield.csv","0");
+  Muehlhaus_write_string("/inductor_toolkit/shape.csv","square_single");
+  Muehlhaus_write_var("/inductor_toolkit/K1.csv",K1_squaresingle);		// 
+  Muehlhaus_write_var("/inductor_toolkit/K2.csv",K2_squaresingle);
+  Muehlhaus_write_var("/inductor_toolkit/L0.csv",L0_squaresingle);
+  Muehlhaus_write_string("/inductor_toolkit/Nfrac.csv","0.25");   // no extra fractional turns 
+  Muehlhaus_InductorPDK_set_current_layout_info ("Square single ended 90 deg");
+  de_info("Layout option is set to Square single ended!");
+  set_mode_inductor ();
+}
+
+defun cb_LayoutSquareSingle180 () {
+  // some steps are only possible after fine tune
+  Muehlhaus_write_string("/inductor_toolkit/finetune_completed.csv","0");
+  // define what model we are working on
+  Muehlhaus_write_string("/inductor_toolkit/emModel.csv","emModel_square_single");
+  Muehlhaus_write_string("/inductor_toolkit/layoutcell.csv","Inductor_Shapes_lib:ind_square");
+  Muehlhaus_write_string("/inductor_toolkit/layoutname.csv","SquareSingle");
+  Muehlhaus_write_string("/inductor_toolkit/centertap.csv","0");
+  Muehlhaus_write_string("/inductor_toolkit/shield.csv","0");
+  Muehlhaus_write_string("/inductor_toolkit/shape.csv","square_single");
+  Muehlhaus_write_var("/inductor_toolkit/K1.csv",K1_squaresingle);		// 
+  Muehlhaus_write_var("/inductor_toolkit/K2.csv",K2_squaresingle);
+  Muehlhaus_write_var("/inductor_toolkit/L0.csv",L0_squaresingle);
+  Muehlhaus_write_string("/inductor_toolkit/Nfrac.csv","0.5");   // no extra fractional turns 
+  Muehlhaus_InductorPDK_set_current_layout_info ("Square single ended 180 deg");
+  de_info("Layout option is set to Square single ended!");
+  set_mode_inductor ();
+}
+
+defun cb_LayoutSquareSingle270 () {
+  // some steps are only possible after fine tune
+  Muehlhaus_write_string("/inductor_toolkit/finetune_completed.csv","0");
+  // define what model we are working on
+  Muehlhaus_write_string("/inductor_toolkit/emModel.csv","emModel_square_single");
+  Muehlhaus_write_string("/inductor_toolkit/layoutcell.csv","Inductor_Shapes_lib:ind_square");
+  Muehlhaus_write_string("/inductor_toolkit/layoutname.csv","SquareSingle");
+  Muehlhaus_write_string("/inductor_toolkit/centertap.csv","0");
+  Muehlhaus_write_string("/inductor_toolkit/shield.csv","0");
+  Muehlhaus_write_string("/inductor_toolkit/shape.csv","square_single");
+  Muehlhaus_write_var("/inductor_toolkit/K1.csv",K1_squaresingle);		// 
+  Muehlhaus_write_var("/inductor_toolkit/K2.csv",K2_squaresingle);
+  Muehlhaus_write_var("/inductor_toolkit/L0.csv",L0_squaresingle);
+  Muehlhaus_write_string("/inductor_toolkit/Nfrac.csv","0.75");   // no extra fractional turns 
+  Muehlhaus_InductorPDK_set_current_layout_info ("Square single ended 270 deg");
+  de_info("Layout option is set to Square single ended!");
+  set_mode_inductor ();
+}
+
+
+defun cb_LayoutpHSingle () {
+  // some steps are only possible after fine tune
+  Muehlhaus_write_string("/inductor_toolkit/finetune_completed.csv","0");
+  // define what model we are working on
+  Muehlhaus_write_string("/inductor_toolkit/emModel.csv","emModel_pH_singleturn_centertap");
+  Muehlhaus_write_string("/inductor_toolkit/layoutcell.csv","Inductor_Shapes_lib:ind_pH_singleturn_3port");
+  Muehlhaus_write_string("/inductor_toolkit/layoutname.csv","pHSingle");
+  Muehlhaus_write_string("/inductor_toolkit/centertap.csv","1");
+  Muehlhaus_write_string("/inductor_toolkit/shield.csv","0");
+  Muehlhaus_write_string("/inductor_toolkit/shape.csv","pH_single");
+  Muehlhaus_write_var("/inductor_toolkit/K1.csv",K1_pH);		
+  Muehlhaus_write_var("/inductor_toolkit/K2.csv",K2_pH);
+  Muehlhaus_write_var("/inductor_toolkit/L0.csv",L0_pH);
+  Muehlhaus_InductorPDK_set_current_layout_info ("Single turn (N=1) centertap");
+  de_info("Layout option is set to picoHenry special layout: single turn (N=1) centertap!");
+  set_mode_inductor ();
+}
+
+
+defun cb_LayoutpHSingleStacked () {
+  // some steps are only possible after fine tune
+  Muehlhaus_write_string("/inductor_toolkit/finetune_completed.csv","0");
+  // define what model we are working on
+  Muehlhaus_write_string("/inductor_toolkit/emModel.csv","emModel_pH_singleturn_centertap_stacked");
+  Muehlhaus_write_string("/inductor_toolkit/layoutcell.csv","Inductor_Shapes_lib:ind_pH_singleturn_stacked_3port");
+  Muehlhaus_write_string("/inductor_toolkit/layoutname.csv","pHSingleStacked");
+  Muehlhaus_write_string("/inductor_toolkit/centertap.csv","1");
+  Muehlhaus_write_string("/inductor_toolkit/shield.csv","0");
+  Muehlhaus_write_string("/inductor_toolkit/shape.csv","pH_single");
+  Muehlhaus_write_var("/inductor_toolkit/K1.csv",K1_pH_stacked);		
+  Muehlhaus_write_var("/inductor_toolkit/K2.csv",K2_pH_stacked);
+  Muehlhaus_write_var("/inductor_toolkit/L0.csv",L0_pH_stacked);
+  Muehlhaus_InductorPDK_set_current_layout_info ("Single turn (N=1) centertap stacked");
+  de_info("Layout option is set to picoHenry special layout: single turn (N=1) centertap stacked!");
+  set_mode_inductor ();
+}
+
+
+defun cb_Interleaved_Octa() {
+  // octagon, stacked, with center tap	
+  Muehlhaus_write_string("/inductor_toolkit/emModel.csv","emModel_interleaved_octagon_stacked");
+  Muehlhaus_write_string("/inductor_toolkit/layoutcell.csv","Inductor_Shapes_lib:transf_interleaved_6port");
+  Muehlhaus_write_string("/inductor_toolkit/interleaved_stacked.csv","1");
+  Muehlhaus_write_string("/inductor_toolkit/interleaved_square.csv","0");
+  Muehlhaus_write_string("/inductor_toolkit/layoutname.csv","TrafoInterleaved");
+  Muehlhaus_write_string("/inductor_toolkit/centertap.csv","1");
+  Muehlhaus_write_var("/inductor_toolkit/K1.csv",K1_octa_interleaved_stacked);
+  Muehlhaus_write_var("/inductor_toolkit/K2.csv",K2_octa_interleaved_stacked);
+  Muehlhaus_write_var("/inductor_toolkit/L0.csv",L0_octa_interleaved_stacked);
+  Muehlhaus_InductorPDK_set_current_layout_info ("Transformer octagon interleaved");
+  de_info("Layout option is set to Interleaved transformer: octagon");
+  set_mode_transformer ("interleaved");
+}
+
+
+defun cb_Interleaved_Square() {
+  // square, stacked, with center tap	
+  Muehlhaus_write_string("/inductor_toolkit/emModel.csv","emModel_interleaved_square_stacked");
+  Muehlhaus_write_string("/inductor_toolkit/layoutcell.csv","Inductor_Shapes_lib:transf_interleaved_6port");
+  Muehlhaus_write_string("/inductor_toolkit/interleaved_stacked.csv","1");
+  Muehlhaus_write_string("/inductor_toolkit/interleaved_square.csv","1");
+  Muehlhaus_write_string("/inductor_toolkit/layoutname.csv","TrafoInterleaved");
+  Muehlhaus_write_string("/inductor_toolkit/centertap.csv","1");
+  Muehlhaus_write_var("/inductor_toolkit/K1.csv",K1_square_interleaved_stacked);
+  Muehlhaus_write_var("/inductor_toolkit/K2.csv",K2_square_interleaved_stacked);
+  Muehlhaus_write_var("/inductor_toolkit/L0.csv",L0_square_interleaved_stacked);
+  Muehlhaus_InductorPDK_set_current_layout_info ("Transformer square interleaved");
+  de_info("Layout option is set to Interleaved transformer: square");
+  set_mode_transformer ("interleaved");
+}
+
+defun cb_Overlay_2to1() {
+  // octagon, overlay, center tap	
+  Muehlhaus_write_string("/inductor_toolkit/emModel.csv","emModel_balun2to1_overlay");
+  Muehlhaus_write_string("/inductor_toolkit/layoutcell.csv","Inductor_Shapes_lib:transf_octa_overlay_6port");
+  Muehlhaus_write_string("/inductor_toolkit/layoutname.csv","Balun2to1Overlay");
+  Muehlhaus_write_string("/inductor_toolkit/centertap.csv","1");
+  Muehlhaus_write_var("/inductor_toolkit/K1.csv",K1_octa_overlay);
+  Muehlhaus_write_var("/inductor_toolkit/K2.csv",K2_octa_overlay);
+  Muehlhaus_write_var("/inductor_toolkit/L0.csv",L0_octa_overlay);
+  Muehlhaus_InductorPDK_set_current_layout_info ("Balun 2:1 overlay");
+  de_info("Layout option is set to Overlay balun");
+  set_mode_transformer ("overlay");
+}
+
+
+
+defun cb_CreateLumpedModel () {
+  // create lumped model schematic
+  
+    
+  if (Muehlhaus_read_string("/inductor_toolkit/finetune_completed.csv") == "1") {
+	// close other open schematics
+	close_open_schematic ();
+
+	// fine tune is finished, so we can do this step 
+	decl opt_schematic_context = Muehlhaus_CreateLumpedModel();
+	if (opt_schematic_context != NULL) 
+	{
+	  // start optimizer automatically?
+	  if (lumpedmodel_start_optimizer) {        
+	    de_info("Initial values and goals are set, starting optimization now.\n\nWhen optimization is finished, please CLOSE optimization cockpit to create the final data!");
+	    de_bring_context_to_top_or_open_new_window(opt_schematic_context);
+	    de_optimize();     
+	  } else {
+	    de_info("Initial values and goals are set, please start optimizeration now.\n\nWhen optimization is finished, please CLOSE optimization cockpit to create the final data!");
+	  };
+	}  
+      } else {
+	// finetune is not yet completed, so we can't do this now!
+	warning("", 0, "Before creating the lumped model, you need to run the Fine Tune Inductance step!", NULL);
+      }
+}
+
+
+
+defun cb_SweepCombinations(cbData, callData, winInstP)
+{
+  // sweep the parameter range
+  Muehlhaus_write_string("/inductor_toolkit/finetune_completed.csv","0");
+
+  decl mode = Muehlhaus_read_string("/inductor_toolkit/mode.csv");
+  if (mode == "inductor") {
+    // normal inductor workflow
+    prepare_sweep_schematic("batch");
+    if (save_all_designs_on_simulate) de_save_all_designs();
+    de_analyze();
+  } else {
+    // transformer
+    prepare_transformer_schematic();
+    if (save_all_designs_on_simulate) de_save_all_designs();
+    de_analyze();
+  }
+  
+}
+
+
+defun cb_FineTune(cbData, callData, winInstP)
+{
+ // sweep the parameter range
+ 
+  prepare_sweep_schematic("finetune");
+  if (save_all_designs_on_simulate) de_save_all_designs();
+  de_analyze();
+  // now we can unlock the next steps (output generation)
+  Muehlhaus_write_string("/inductor_toolkit/finetune_completed.csv","1");
+
+}
+
+
+
+defun cb_CreateCell ()
+{
+  decl mode = Muehlhaus_read_string("/inductor_toolkit/mode.csv");
+  if (mode == "inductor") {
+  	Muehlhaus_CreateInductorCell ();
+  } else {
+  	Muehlhaus_CreateTransformerCell ();
+  }
+  	
+}  
+
+defun cb_Logfile ()
+{
+  Muehlhaus_Show_History_File ();
+}
+
+
+defun cb_Version () 
+{
+  de_info(Muehlhaus_get_about()); 
+}
+
+defun cb_Manual () 
+{
+  decl filename = strcat(MUEHLHAUS_INDUCTOR_PDK_PATH, "doc/RFIC_Inductor_Toolkit.pdf");
+  Muehlhaus_open_PDF (filename);
+}
+
+defun cb_Tutorial () 
+{
+  decl filename = strcat(MUEHLHAUS_INDUCTOR_PDK_PATH, "doc/Tutorial.pdf");
+  Muehlhaus_open_PDF (filename);
+}
+
+
+
+
+defun cb_Clean_all_emModel_results ()
+{
+  clean_all_emModel_results ();  // defined in utilities.ael
+}
+
+defun cb_set_emModel_frequency ()
+{
+  ask_set_emModel_frequency ();  // defined in utilities.ael
+}
+
+defun cb_Update_EM_Pins ()
+{
+  // set pin layers in EM layouts to use the correct layer from technology file
+  
+  Update_EM_Pins_All ();  		// defined in utilities.ael
+  clean_all_emModel_results ();  	// defined in utilities.ael
+  set_all_emModel_pin_layers  (); 	// defined in utilities.ael
+
+}
+
+defun cb_Update_emModelStateFiles ()
+{
+  // not strictly pins, but a good place to make this setting
+  de_info("Updating emModel Statefiles now, this will take a while"); 
+  update_statefile_userdefined ();
+  de_info("Updating emModel Statefiles finished"); 
+}
+
+
+defun cb_Choose_Substrate ()
+{
+  // let user choose substrate and set that to emSetup and emModel 
+  
+  decl libraryList = de_get_open_libraries(TRUE); // get open libraries in workspace
+  decl libraryListsize = listlen(libraryList);
+  decl i,n;
+  decl openLibName;
+  decl libPath;
+  decl subname;
+  decl sub_path_name;
+  decl substFilesThisLib;
+  decl substFilesListsize;
+  decl substFilesAll = list();
+  
+  for ( i=0; i < libraryListsize; i++)
+  {
+      openLibName = nth(i, libraryList);
+      // fputs(stderr,strcat("Open library: ",openLibName));
+      
+      // Get the file path.
+      libPath = de_get_path_to_open_library(openLibName);
+        
+      // get *.subst files
+      substFilesThisLib = get_dir_files(libPath, "subst");
+      substFilesListsize = listlen(substFilesThisLib);
+      
+      if (substFilesListsize > 0) 
+      {
+	// format list entries
+	for ( n=0; n < substFilesListsize; n++)
+	{ 	
+	  subname = nth(n, substFilesThisLib);
+	  // remove :+subst suffix
+	  subname = replace_string(subname,".subst", "");
+	  // add library name
+	  sub_path_name = strcat(openLibName, ":", subname);
+  	  substFilesAll = append (substFilesAll,list(sub_path_name)); 
+	}
+
+      } 	  
+     
+  }
+    
+  // show user dialog, callback function will be called when OK is pressed
+  de_list_select("Please select the substrate file",substFilesAll,"subst_selected");  
+  
+}
+
+
+
+//Process file selection after cb_InputFile dialog box is displayed and OK is pressed.
+defun subst_selected(newSubstrate)
+{ 
+
+  fputs(stderr,sprintf("Selected substrate: %s", newSubstrate));
+  
+  // parameter from dialog has correct library_substrate format that we need for emStateFile
+  set_all_emModel_substrates (newSubstrate);  // defined in utilities.ael
+
+  // emModel must be cleared when substrate changed
+  clean_all_emModel_results ();  	// defined in utilities.ael
+}
+
+
+defun cb_Calibrate(){
+	if (Muehlhaus_read_string("/inductor_toolkit/mode.csv")=="inductor") 
+	{
+		de_info(sprintf("Preparing schematic for calibration. \nRunning this simulation can take several hours because of many EM simulation. \nStart optimizer to start, close schematic to cancel."));
+		prepare_calibration_sweeplist  ();
+		prepare_calibration_schematic  ();
+	} else de_info("Calibration is only available for inductor shapes, not transformers");
+}
+
+
+defun Muehlhaus_InductorPDK_add_custom_menus(winType)
+{
+  if (winType == MAIN_WINDOW)
+  {
+    decl ToolkitMenu,
+    	SetTargetValueItem,
+    	SetLayoutOptionMenu,
+    	InductorDiffMenu,
+    	InductorSingleMenu,
+    	TransformerMenu,
+    	SweepCombinationsItem,
+    	CreateLayoutItem,
+    	VersionItem,
+    	ManualItem,
+    	TutorialItem,
+    	SettingsMenu,
+    	Clean_all_emModel_resultsItem,
+    	set_emModel_frequencyItem,
+    	Update_EM_PinsItem,
+    	Update_Statefile_Item,
+    	Choose_SubstrateItem,
+    	LogfileItem;
+    	
+    // These items are only used for menus that not always exist (configuration dependent)
+    decl OctaItem = NULL;
+    decl OctaStackedItem = NULL;
+    decl OctaCentertapItem = NULL;
+    decl OctaCentertapStackedItem = NULL;
+    decl OctaPGSItem = NULL; 
+    decl OctaPGSTapItem = NULL;
+    decl OctaStackedPGSTapItem = NULL;
+    decl OctaSingleItem = NULL;
+    decl SquareDiffItem = NULL;
+    decl SquareDiffCentertapItem = NULL;
+    decl SquareSingle0Item = NULL;
+    decl SquareSingle90Item = NULL;
+    decl SquareSingle180Item = NULL;
+    decl SquareSingle270Item = NULL;
+    decl pH_SingleItem = NULL;
+    decl pH_SingleStackedItem = NULL;
+    decl TrafoInterleavedOctaItem = NULL;
+    decl TrafoInterleavedSquareItem = NULL;
+    decl TrafoOverlay2to1Item = NULL;
+    decl PlaceholderItem = NULL;
+    decl UpgradeItem = NULL;
+    
+    decl CalibrateItem = NULL; 
+
+      
+      // if schematic main menu entry does not yet exist, create it
+      ToolkitMenu = Muehlhaus_InductorPDK_add_submenu(NULL, PDK_Menu_Name);  // Toolkit_Name is from technology.ael
+      api_menu_manage(ToolkitMenu,TRUE);
+
+	
+	// Submenu to define layout option
+	SetLayoutOptionMenu = Muehlhaus_InductorPDK_add_submenu(ToolkitMenu, "1: Set layout option");  // actual submenus defined below
+	
+	// Subsubmenu inductor/transformer
+	InductorDiffMenu = Muehlhaus_InductorPDK_add_submenu(SetLayoutOptionMenu, "Inductors symmetric");
+	InductorSingleMenu = Muehlhaus_InductorPDK_add_submenu(SetLayoutOptionMenu, "Inductors single ended");
+        api_menu_manage(InductorDiffMenu, TRUE);
+        api_menu_manage(InductorSingleMenu, TRUE);
+
+        if (include_transformers) {
+	  TransformerMenu = Muehlhaus_InductorPDK_add_submenu(SetLayoutOptionMenu, "Transformers");
+          api_menu_manage(TransformerMenu, TRUE);
+        }  
+
+	// Submenu to set target value
+	SetTargetValueItem = Muehlhaus_InductorPDK_add_menuitem(ToolkitMenu, "2: Set target value","cb_SetTargetValue");
+
+
+	SweepCombinationsItem = Muehlhaus_InductorPDK_add_menuitem(ToolkitMenu, "3: Sweep parameter combinations", "cb_SweepCombinations");
+	FineTuneItem = Muehlhaus_InductorPDK_add_menuitem(ToolkitMenu, "4: Fine tune inductance value", "cb_FineTune");
+	CreateLumpedModelItem = Muehlhaus_InductorPDK_add_menuitem(ToolkitMenu, "5: Create lumped model (optional)", "cb_CreateLumpedModel");
+	CreateLayoutItem = Muehlhaus_InductorPDK_add_menuitem(ToolkitMenu, "6: Create inductor cell in library", "cb_CreateCell");
+
+	add_separator(PDK_Menu_Name);
+
+      
+        // Log file of previous results
+        LogfileItem = Muehlhaus_InductorPDK_add_menuitem(ToolkitMenu, "Show synthesis history (log file)", "cb_Logfile");
+
+	add_separator(PDK_Menu_Name);
+	
+	SettingsMenu = Muehlhaus_InductorPDK_add_submenu(ToolkitMenu, "Settings");
+	Clean_all_emModel_resultsItem = Muehlhaus_InductorPDK_add_menuitem(SettingsMenu, "Clear existing emModel database", "cb_Clean_all_emModel_results");
+	set_emModel_frequencyItem = Muehlhaus_InductorPDK_add_menuitem(SettingsMenu, "Set maximum emModel frequency...", "cb_set_emModel_frequency");
+	add_separator("Settings");
+	Choose_SubstrateItem = Muehlhaus_InductorPDK_add_menuitem(SettingsMenu, "Choose Momentum substrate file...", "cb_Choose_Substrate");
+	Update_EM_PinsItem= Muehlhaus_InductorPDK_add_menuitem(SettingsMenu, "Update emModel pin layer + position from technology.ael", "cb_Update_EM_Pins");
+	Update_Statefile_Item = Muehlhaus_InductorPDK_add_menuitem(SettingsMenu, "Update emModel settings from statefile.ael", "cb_Update_emModelStateFiles");
+	add_separator("Settings");
+	if (show_calibration_factor_menu) CalibrateItem = Muehlhaus_InductorPDK_add_menuitem(SettingsMenu, "Calculate calibration data for selected layout", "cb_Calibrate");
+
+
+	// More menu items
+	
+
+	// ------------------- inductors -------------------------
+
+	OctaItem = Muehlhaus_InductorPDK_add_menuitem(InductorDiffMenu, "Octagon diff.", "cb_LayoutOcta");
+	OctaCentertapItem = Muehlhaus_InductorPDK_add_menuitem(InductorDiffMenu, "Octagon diff. centertap", "cb_LayoutOctaCentertap");
+
+
+	if (include_groundshield_layouts) 
+	{
+		OctaPGSItem = Muehlhaus_InductorPDK_add_menuitem(InductorDiffMenu, "Octagon diff. groundshield", "cb_LayoutOctaPGS");
+		OctaPGSTapItem = Muehlhaus_InductorPDK_add_menuitem(InductorDiffMenu, "Octagon diff. groundshield centertap", "cb_LayoutOctaCentertapPGS");
+	}
+
+
+	if (include_stackedmetal_layouts) 
+	{
+		OctaStackedItem = Muehlhaus_InductorPDK_add_menuitem(InductorDiffMenu, "Octagon diff. stacked", "cb_LayoutOctaStacked");
+		OctaCentertapStackedItem = Muehlhaus_InductorPDK_add_menuitem(InductorDiffMenu, "Octagon diff. stacked centertap", "cb_LayoutOctaCentertapStacked");
+		if (include_groundshield_layouts) OctaStackedPGSTapItem = Muehlhaus_InductorPDK_add_menuitem(InductorDiffMenu, "Octagon diff. stacked groundshield centertap", "cb_LayoutOctaCentertapStackedPGS");
+	}
+
+	add_separator("Inductors symmetric");
+
+	OctaSingleItem = Muehlhaus_InductorPDK_add_menuitem(InductorSingleMenu, "Octagon single ended 180 deg", "cb_LayoutOctaSingle");
+
+	pH_SingleItem = Muehlhaus_InductorPDK_add_menuitem(InductorDiffMenu, "Round 'pH' single turn (N=1) centertap", "cb_LayoutpHSingle");
+	if (include_stackedmetal_layouts) pH_SingleStackedItem = Muehlhaus_InductorPDK_add_menuitem(InductorDiffMenu, "Round 'pH' single turn (N=1) stacked centertap", "cb_LayoutpHSingleStacked");	  
+
+	add_separator("Inductors symmetric");
+
+
+	// ------------------- transformers -------------------------
+
+	if (include_transformers) {
+			TrafoInterleavedOctaItem = Muehlhaus_InductorPDK_add_menuitem(TransformerMenu, "Interleaved octagon transformer", "cb_Interleaved_Octa");
+		TrafoInterleavedSquareItem = Muehlhaus_InductorPDK_add_menuitem(TransformerMenu, "Interleaved square transformer", "cb_Interleaved_Square");
+		TrafoOverlay2to1Item =     Muehlhaus_InductorPDK_add_menuitem(TransformerMenu, "Overlay 2:1 balun", "cb_Overlay_2to1");
+	}	
+
+
+	SquareDiffItem = Muehlhaus_InductorPDK_add_menuitem(InductorDiffMenu, "Square diff.", "cb_LayoutSquareDiff");
+	SquareDiffCentertapItem = Muehlhaus_InductorPDK_add_menuitem(InductorDiffMenu, "Square diff. centertap", "cb_LayoutSquareDiffCentertap");
+	
+	SquareSingle0Item = Muehlhaus_InductorPDK_add_menuitem(InductorSingleMenu, "Square single ended 0 deg", "cb_LayoutSquareSingle0");
+	SquareSingle90Item = Muehlhaus_InductorPDK_add_menuitem(InductorSingleMenu, "Square single ended 90 deg", "cb_LayoutSquareSingle90");
+	SquareSingle180Item = Muehlhaus_InductorPDK_add_menuitem(InductorSingleMenu, "Square single ended 180 deg", "cb_LayoutSquareSingle180");
+	SquareSingle270Item = Muehlhaus_InductorPDK_add_menuitem(InductorSingleMenu, "Square single ended 270 deg", "cb_LayoutSquareSingle270");
+
+	
+	// placeholder for current layout option
+	add_separator("1: Set layout option");
+	PlaceholderItem = Muehlhaus_InductorPDK_add_menuitem(SetLayoutOptionMenu, "current_layout", "");
+	set_user_menu_label("(no layout option set)", "current_layout");
+
+	api_menu_manage(SetTargetValueItem,TRUE);
+	api_menu_manage(SetLayoutOptionMenu,TRUE);
+	api_menu_manage(SweepCombinationsItem,TRUE);
+	api_menu_manage(FineTuneItem,TRUE);
+	api_menu_manage(CreateLayoutItem,TRUE);
+	api_menu_manage(CreateLumpedModelItem,TRUE);
+	api_menu_manage(SettingsMenu,TRUE);
+	api_menu_manage(Clean_all_emModel_resultsItem, TRUE);
+	api_menu_manage(Update_EM_PinsItem, TRUE);
+	api_menu_manage(Choose_SubstrateItem, TRUE);
+        api_menu_manage(LogfileItem,TRUE);
+        api_menu_manage(CalibrateItem, TRUE);
+        
+
+	if (OctaItem != NULL) api_menu_manage(OctaItem,TRUE);
+	if (OctaCentertapItem != NULL) api_menu_manage(OctaCentertapItem,TRUE);
+	if (OctaPGSItem != NULL) api_menu_manage(OctaPGSItem,TRUE);
+	if (OctaPGSTapItem != NULL) api_menu_manage(OctaPGSTapItem,TRUE);
+	if (OctaStackedItem != NULL) api_menu_manage(OctaStackedItem,TRUE);
+	if (OctaCentertapStackedItem != NULL) api_menu_manage(OctaCentertapStackedItem,TRUE);
+	if (OctaStackedPGSTapItem != NULL) api_menu_manage(OctaStackedPGSTapItem,TRUE);
+
+	if (OctaSingleItem != NULL) api_menu_manage(OctaSingleItem,TRUE);
+	
+	if (SquareDiffItem != NULL) api_menu_manage(SquareDiffItem,TRUE);
+	if (SquareDiffCentertapItem != NULL) api_menu_manage(SquareDiffCentertapItem,TRUE);
+	
+	if (SquareSingle0Item != NULL) api_menu_manage(SquareSingle0Item,TRUE);
+	if (SquareSingle90Item != NULL) api_menu_manage(SquareSingle90Item,TRUE);
+	if (SquareSingle180Item != NULL) api_menu_manage(SquareSingle180Item,TRUE);
+	if (SquareSingle270Item != NULL) api_menu_manage(SquareSingle270Item,TRUE);
+
+	if (pH_SingleItem!= NULL) api_menu_manage(pH_SingleItem, TRUE);
+	if (pH_SingleStackedItem!= NULL) api_menu_manage(pH_SingleStackedItem, TRUE);
+	
+	if (TrafoInterleavedOctaItem != NULL) api_menu_manage(TrafoInterleavedOctaItem, TRUE);
+	if (TrafoInterleavedSquareItem != NULL) api_menu_manage(TrafoInterleavedSquareItem, TRUE);
+	if (TrafoOverlay2to1Item != NULL) api_menu_manage(TrafoOverlay2to1Item, TRUE);
+
+	if (PlaceholderItem != NULL) api_menu_manage(PlaceholderItem, TRUE);
+	if (UpgradeItem != NULL) api_menu_manage(UpgradeItem, TRUE);
+		
+   
+	ManualItem = Muehlhaus_InductorPDK_add_menuitem(ToolkitMenu, "User's Guide", "cb_Manual");
+	api_menu_manage(ManualItem,TRUE);
+	TutorialItem = Muehlhaus_InductorPDK_add_menuitem(ToolkitMenu, "Tutorial - Getting Started", "cb_Tutorial");
+	api_menu_manage(TutorialItem,TRUE);
+
+	VersionItem = Muehlhaus_InductorPDK_add_menuitem(ToolkitMenu, "Toolkit version ...", "cb_Version");
+	api_menu_manage(VersionItem,TRUE);
+
+  }
+}
+
+
+// ------------------- menu utility functions ----------------------
+
+
+defun Muehlhaus_InductorPDK_add_menuitem(parent_menu_handle, menu_text, callback_function)
+// menu entry with call function
+// return value is menu handle
+
+{
+  decl theMenuHandle;
+  if (!(theMenuHandle = api_find_menu(parent_menu_handle, menu_text)))
+  {
+    theMenuHandle=api_create_menu(menu_text, menu_text, callback_function, "", "", NULL);
+    if (theMenuHandle) api_add_menu(parent_menu_handle, theMenuHandle);
+  }
+  return theMenuHandle;
+}
+
+
+
+defun Muehlhaus_InductorPDK_add_submenu(parent_menu_handle, menu_text)
+// submenu for adding children
+// return value is menu handle
+{
+  decl theMenuHandle;
+  if (!(theMenuHandle = api_find_menu(parent_menu_handle, menu_text)))
+  {
+    theMenuHandle=api_create_menu_cascade(menu_text, menu_text,  API_MA_TEAROFF, NULL);
+    if (theMenuHandle) api_add_menu(parent_menu_handle, theMenuHandle);
+  }
+  return theMenuHandle;
+}
+
+
+defun Muehlhaus_InductorPDK_set_current_layout_info (layout_option)
+// set the value shown in the menu
+{
+  decl new_text = strcat(">> ",layout_option, " <<"); 
+  set_user_menu_label(new_text, "current_layout");
+}
+
+
+
+// ------------------- main ----------------------
+
+
+decl FullVersion; 
+decl DemoVersion;
+
+  // register menu function and menu names with ADS infrastructure
+fputs(stderr, "Registering Muehlhaus Inductor PDK menus now");
+
+  // name of AEL menu creation function provided by the design kit
+dk_register_menu_function ("Muehlhaus_InductorPDK_add_custom_menus");
+
+// list of menu names for that window type
+dk_register_menu_name ( MAIN_WINDOW, list (PDK_Menu_Name));
+// changed: don't add it to the schematic, only to main
+// dk_register_menu_name ( SCHEMATIC_WINDOW, list (PDK_Menu_Name));
+
+
+// done
+
+

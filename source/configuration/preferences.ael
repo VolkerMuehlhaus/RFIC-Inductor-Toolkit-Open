@@ -1,0 +1,37 @@
+
+// Preference file for inductor toolkit
+
+// ============ USER INTERFACE ============
+
+decl save_all_designs_on_simulate = TRUE; // (TRUE|FALSE) save all open designs (including user designs) before running synthesis 
+decl close_all_designs_on_simulate = TRUE; // (TRUE|FALSE) close all open designs (including user designs) before running synthesis 
+decl lumpedmodel_start_optimizer = TRUE;  // (TRUE|FALSE) automatically start optizer after setting up the lumped model schematic
+
+decl show_calibration_factor_menu = TRUE; // (TRUE|FALSE) Show menu item to calculate calibration factors for selected layout option 
+
+// ============ SYSTEM OPTIONS ============
+decl copy_precalculated_substrate_functions = TRUE; // (TRUE|FALSE) Copy pre-calculated substrate from inductor PDK to workspace /substrates directory where ADS will find it
+decl finetune_emModel_cell_prefix = "finetune_"; 		// use emModel from cell with this suffix for finetune with this suffix, if it exists
+
+decl Linux_open_URL_commmand = "firefox"; 	// command to open PDF and URLs. examples: "xdg-open" or "firefox" 
+decl Linux_open_PDF_commmand = "firefox"; 	// command to open PDF and URLs. examples: "xdg-open" or "firefox" 
+
+
+// ============ LAYOUT OPTIONS ============
+decl include_groundshield_layouts = TRUE;  	// (TRUE|FALSE) include ground shield inductor layouts in menu
+decl include_stackedmetal_layouts = TRUE; 	// (TRUE|FALSE) include stacked metal inductor layouts in menu
+decl include_transformers = TRUE; 		// (TRUE|FALSE) include transfromer design tool (beta version)
+
+decl pH_single_feedline_width = 10; 	// feedline width for single turn picoHenry inductor (microns)
+
+decl draw_groundframe = FALSE; 		// optional groundframe around inductor, to imitate real on-chip environment
+decl groundframe_size_factor = 1.5;	// size factor of ground frame (scale factor relative to outer inductor diameter)
+decl groundframe_oversize = 0;		// additional ground frame offset (size independent) after applying the scale factor
+decl groundframe_width = 20;		// width of ground frame
+decl groundframe_layer = Metal1;	// optional ground frame around inductor (parameter is layer number or alias)
+decl groundframe_extend_feedline = FALSE;  // extend feedline to ground frame (!ATTENTION! This changes calibration factors for synthesis !)
+decl groundframe_extend_over_frame= FALSE; // extend feedline over ground frame (TRUE=outer edge | FALSE=inner edge)
+
+// IMPORTANT NOTE on ground frame changes: when using groundframe_extend_feedline, you need to re-adjust EM model pin position after changes
+// Step 1: reload the workspace to read settings from your modified file 
+// Step 2: Inductor Toolkit > Settings > Update emModel pin layer + position from technology.ael

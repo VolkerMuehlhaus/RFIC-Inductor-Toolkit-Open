@@ -1,0 +1,242 @@
+decl inductor_logfile = "inductors_log.csv";
+decl transformer_logfile = "transformers_log.csv";
+decl inductor_history = "inductors.html";
+decl transformer_history = "transformers.html";
+
+
+defun Muehlhaus_Write_Inductor_History_File ()
+{
+// write synthesis results to history file
+
+  decl fID;
+  decl filename = strcat(getcwd(),"/data/",inductor_logfile);
+  
+  if (ael_file_exists(filename)) {
+    // file exists, open in append mode, no header lines required
+    fID = fopen(filename, "A");
+  } else {
+    // file did not exist, open in write mode and write header lines 
+    fID = fopen(filename, "W");
+  
+    if (fID != NULL) {
+      // file header
+      fputs(fID,"L@ftarget[nH]\t Q@ftarget\t f_target[GHz]\t Qmax\t f(Qmax)[GHz]\t SRF[GHz]\t N\t w[um]\t s[um]\t dout[um]\t RDC[Ohm]\t shape\t modelname"); 
+    }  
+  
+  }
+ 
+  
+  if (fID != NULL) {
+    // collect information for log file
+    decl L_ftarget = Muehlhaus_read_var("/inductor_toolkit/L_ftarget.csv");
+    decl Q_ftarget = Muehlhaus_read_var("/inductor_toolkit/Q_ftarget.csv");
+    decl Qmax = Muehlhaus_read_var("/inductor_toolkit/Qmax.csv");
+    decl f_Qmax = Muehlhaus_read_var("/inductor_toolkit/f_Qmax.csv");
+    decl RDC = Muehlhaus_read_var("/inductor_toolkit/RDC.csv");
+    decl SRF_string = Muehlhaus_read_string("/inductor_toolkit/SRF.csv");
+
+    decl f_target = Muehlhaus_read_var("/inductor_toolkit/ftarget.csv");
+
+    
+    decl N = Muehlhaus_get_real_from_csv("/data/inductor_params_final.csv", "N",0);
+    decl w = Muehlhaus_get_real_from_csv("/data/inductor_params_final.csv", "w",0);
+    decl s = Muehlhaus_get_real_from_csv("/data/inductor_params_final.csv", "s",0);
+    decl dout = Muehlhaus_get_real_from_csv("/data/inductor_params_final.csv", "dout",0);
+    
+    decl shape = Muehlhaus_read_string("/inductor_toolkit/layoutname.csv");
+    decl modelname = getModelName();
+    
+    // L@ftarget, Q@ftarget, f_target, Qmax, f(Qmax), SRF, N, w, s, dout, RDC, shape, modelname
+    fputs(fID,sprintf("%.2f\t %.1f\t %.3f\t %.1f\t %3f\t %s\t  %.2f\t %.1f\t %.1f\t %.1f\t%.2f\t %s\t %s", L_ftarget*1e9, Q_ftarget, f_target/1e9, Qmax, f_Qmax/1e9, SRF_string, N, w, s, dout, RDC, shape, modelname)); 
+  
+
+    // done, close log file
+    fclose(fID);
+    
+    // convert to HTML
+    Muehlhaus_Convert_History_HTML (inductor_logfile, inductor_history);
+
+    return 1;
+
+
+  } else {
+    // Cannot create output file
+    print_function_error("Muehlhaus_Write_History_File ", strcat(sFileName, " not a valid file."));
+    return 0;
+
+  } //if
+
+}
+
+
+defun Muehlhaus_Write_TransformerHistory_File ()
+{
+// write synthesis results to history file
+
+  decl fID;
+  decl filename = strcat(getcwd(),"/data/",transformer_logfile);
+  
+  if (ael_file_exists(filename)) {
+    // file exists, open in append mode, no header lines required
+    fID = fopen(filename, "A");
+  } else {
+    // file did not exist, open in write mode and write header lines 
+    fID = fopen(filename, "W");
+  
+    if (fID != NULL) {
+      // file header
+      fputs(fID,"L1_nominal[nH]\t Port1_2[Ohm]\t f_target[GHz]\t S21[dB]@ftarget\t Z1@ftarget\t Z2@ftarget\t N1 \t N2 \t w[um]\t s[um]\t dout[um]\t shape\t modelname"); 
+    }  
+  
+  }
+ 
+  
+  if (fID != NULL) {
+    // collect information for log file
+    decl L_nom = Muehlhaus_read_var("/inductor_toolkit/Lnom.csv");
+    decl R1R2 = Muehlhaus_read_string("/inductor_toolkit/R1R2.csv");
+    decl f_target = Muehlhaus_read_var("/inductor_toolkit/ftarget.csv");
+    decl IL = Muehlhaus_read_var("/inductor_toolkit/IL.csv");
+    decl Zin1 = Muehlhaus_read_string("/inductor_toolkit/Zin1.csv");
+    decl Zin2 = Muehlhaus_read_string("/inductor_toolkit/Zin2.csv");
+
+    decl N1 = Muehlhaus_read_var("/inductor_toolkit/N1.csv");
+    decl N2 = Muehlhaus_read_var("/inductor_toolkit/N2.csv");
+    decl w = Muehlhaus_read_var("/inductor_toolkit/w.csv");
+    decl s = Muehlhaus_read_var("/inductor_toolkit/s.csv");
+    decl dout = Muehlhaus_read_var("/inductor_toolkit/dout.csv");
+    
+    decl shape = Muehlhaus_read_string("/inductor_toolkit/layoutname.csv");
+    decl modelname = getModelName();
+    
+    // L1_nominal Port1_2 f_target S21 Z1@ftarget Z2@ftarget N1 N2 w s dout shape modelname
+    fputs(fID,sprintf("%.2f\t %s\t %3f\t %.2f\t %s\t %s\t %.1f\t %.1f\t %.1f\t %.1f\t%.2f\t %s\t %s", L_nom*1e9, R1R2, f_target/1e9, IL, Zin1, Zin2, N1, N2, w, s, dout, shape, modelname)); 
+  
+
+    // done, close log file
+    fclose(fID);
+    
+    // convert to HTML
+    Muehlhaus_Convert_History_HTML (transformer_logfile, transformer_history);
+
+    return 1;
+
+
+  } else {
+    // Cannot create output file
+    print_function_error("Muehlhaus_Write_History_File ", strcat(sFileName, " not a valid file."));
+    return 0;
+
+  } //if
+
+}
+
+
+
+defun Muehlhaus_Clear_History_File ()
+{
+// clear history file (remove previous version)
+
+  decl fID;
+  decl filename = strcat(getcwd(),"/data/",inductor_logfile);
+    
+  // open in write mode and write header lines 
+  fID = fopen(filename, "W");
+  if (fID != NULL) {
+    // file header
+     fputs(fID,"L@ftarget[nH]\t Q@ftarget\t f_target[GHz]\t Qmax\t f(Qmax)[GHz]\t SRF[GHz]\t N\t w[um]\t s[um]\t dout[um]\t RDC[Ohm]\t shape\t modelname"); 
+     fclose(fID);
+  }  
+  
+  filename = strcat(getcwd(),"/data/",transformer_logfile);
+    
+  // open in write mode and write header lines 
+  fID = fopen(filename, "W");
+  if (fID != NULL) {
+    // file header
+      fputs(fID,"L1_nominal[nH]\t Port1_2[Ohm]\t f_target[GHz]\t S21[dB]@ftarget\t Z1@ftarget\t Z2@ftarget\t N1 \t N2 \t w[um]\t s[um]\t dout[um]\t shape\t modelname"); 
+     fclose(fID);
+  }  
+
+}
+ 
+
+defun Muehlhaus_Convert_History_HTML (logname, HTMLname)
+{
+   // create HTML log from csv file
+
+  decl finID = fopen(strcat(getcwd(),"/data/",logname), "R");
+  decl foutID = fopen(strcat(getcwd(),"/data/",HTMLname), "W");
+  
+  decl inputline;
+
+  if ((finID != NULL) && (foutID != NULL)) {
+
+    // inductors  log
+    // we can read the file
+    inputline=fgets(finID);  
+    
+    // process header line 
+    if (inputline != NULL) 
+    {
+      decl itemlist = parse (inputline, "\t"); // split line into list items
+      decl listsize = listlen (itemlist);
+            
+      // fixed header in HTML output file 
+      fputs(foutID,"<table style=\"width:100%\">");
+
+      fputs(foutID,"<tr bgcolor=\"#E5E5E5\">");
+      decl i;
+      for ( i=0; i < listsize; i++)
+      { 
+        fputs(foutID,sprintf("<th>%s</th>", nth(i,itemlist)));
+      }
+      fputs(foutID,"</tr>");
+      
+      // header line finished, now process data lines
+      inputline=fgets(finID);  
+      decl paint_background = FALSE; // for line background in HTML
+      while (inputline != NULL) 
+      { 
+	// we can get another line from the input file
+	itemlist = parse (inputline, "\t"); // split line into list items
+	listsize = listlen (itemlist);
+
+	if (paint_background) {
+	  fputs(foutID,"<tr bgcolor=\"#E5E5E5\">");
+	} else {
+	  fputs(foutID,"<tr bgcolor=\"#FFFFFF\">");
+	}
+	decl i;
+	decl background; 
+	for ( i=0; i < listsize; i++)
+	{ 
+	  fputs(foutID,sprintf("<td align=\"center\">%s</td>", nth(i,itemlist)));
+	}
+        fputs(foutID,"</tr>");
+
+
+	// get the next line
+	inputline=fgets(finID);  
+        paint_background = !paint_background; // invert backgriund color
+      }    
+    }  
+
+    
+    fclose(finID);  
+    fclose(foutID); 
+  }  
+}
+
+
+
+defun Muehlhaus_Show_History_File ()
+{
+    // Show HTML in browser
+    decl out_filename = strcat(getcwd(),"/data/",inductor_history); 
+    Muehlhaus_open_URL (out_filename);
+
+    decl out_filename = strcat(getcwd(),"/data/",transformer_history); 
+    Muehlhaus_open_URL (out_filename);
+  
+}

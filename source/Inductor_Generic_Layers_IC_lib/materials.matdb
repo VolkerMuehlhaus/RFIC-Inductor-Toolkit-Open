@@ -1,0 +1,35 @@
+<!DOCTYPE Materials>
+<Materials>
+    <Conductors>
+        <Conductor mur_imag="" name="Metal6" mur_real="1" real="2.405e+07 Siemens/m" imag="0 Siemens/m" parmtype="1"/>
+        <Conductor mur_imag="" name="Metal5" mur_real="1" real="2.405e+07 Siemens/m" imag="0 Siemens/m" parmtype="1"/>
+        <Conductor mur_imag="" name="Metal4" mur_real="1" real="2.40509e+07 Siemens/m" imag="0 Siemens/m" parmtype="1"/>
+        <Conductor mur_imag="" name="Metal3" mur_real="1" real="2.40509e+07 Siemens/m" imag="0 Siemens/m" parmtype="1"/>
+        <Conductor mur_imag="" name="Metal2" mur_real="1" real="2.40509e+07 Siemens/m" imag="0 Siemens/m" parmtype="1"/>
+        <Conductor mur_imag="" name="Metal1" mur_real="1" real="2.40509e+07 Siemens/m" imag="0 Siemens/m" parmtype="1"/>
+        <Conductor mur_imag="" name="Poly" mur_real="1" real="625000 Siemens/m" imag="0 Siemens/m" parmtype="1"/>
+        <Conductor mur_imag="" name="Via" mur_real="1" real="4e6 Siemens/m" imag="" parmtype="1"/>
+    </Conductors>
+    <Dielectrics>
+        <Dielectric loss_type="0" mur_imag="0" name="pass2" mur_real="1" er_imag="0" er_loss="" valuefreq="" er_real="7.9" highfreq="" lowfreq=""/>
+        <Dielectric loss_type="0" mur_imag="0" name="pass1" mur_real="1" er_imag="0" er_loss="" valuefreq="" er_real="4.2" highfreq="" lowfreq=""/>
+        <Dielectric loss_type="0" mur_imag="0" name="ox6b" mur_real="1" er_imag="0" er_loss="" valuefreq="" er_real="4.2" highfreq="" lowfreq=""/>
+        <Dielectric loss_type="0" mur_imag="0" name="ox6a" mur_real="1" er_imag="0" er_loss="" valuefreq="" er_real="3.7" highfreq="" lowfreq=""/>
+        <Dielectric loss_type="0" mur_imag="0" name="ox5b" mur_real="1" er_imag="0" er_loss="" valuefreq="" er_real="4.2" highfreq="" lowfreq=""/>
+        <Dielectric loss_type="0" mur_imag="0" name="ox5a" mur_real="1" er_imag="0" er_loss="" valuefreq="" er_real="3.7" highfreq="" lowfreq=""/>
+        <Dielectric loss_type="0" mur_imag="0" name="ox4b" mur_real="1" er_imag="0" er_loss="" valuefreq="" er_real="4.2" highfreq="" lowfreq=""/>
+        <Dielectric loss_type="0" mur_imag="0" name="ox4a" mur_real="1" er_imag="0" er_loss="" valuefreq="" er_real="3.7" highfreq="" lowfreq=""/>
+        <Dielectric loss_type="0" mur_imag="0" name="ox3b" mur_real="1" er_imag="0" er_loss="" valuefreq="" er_real="4.2" highfreq="" lowfreq=""/>
+        <Dielectric loss_type="0" mur_imag="0" name="ox3a" mur_real="1" er_imag="0" er_loss="" valuefreq="" er_real="3.7" highfreq="" lowfreq=""/>
+        <Dielectric loss_type="0" mur_imag="0" name="ox2b" mur_real="1" er_imag="0" er_loss="" valuefreq="" er_real="4.2" highfreq="" lowfreq=""/>
+        <Dielectric loss_type="0" mur_imag="0" name="ox2a" mur_real="1" er_imag="0" er_loss="" valuefreq="" er_real="3.7" highfreq="" lowfreq=""/>
+        <Dielectric loss_type="0" mur_imag="0" name="ox1" mur_real="1" er_imag="0" er_loss="" valuefreq="" er_real="4" highfreq="" lowfreq=""/>
+        <Dielectric loss_type="0" mur_imag="0" name="diff" mur_real="1" er_imag="0" er_loss="" valuefreq="" er_real="3.9" highfreq="" lowfreq=""/>
+        <Dielectric loss_type="0" mur_imag="0" name="sub" mur_real="1" er_imag="0" er_loss="" valuefreq="" er_real="3.9" highfreq="" lowfreq=""/>
+        <Dielectric loss_type="0" mur_imag="0" name="ox_mixed_eff" mur_real="1" er_imag="0" er_loss="" valuefreq="" er_real="3.76" highfreq="" lowfreq=""/>
+    </Dielectrics>
+    <Semiconductors>
+        <Semiconductor mur_imag="0" name="Silicon" mur_real="1" doping="p" er_real="11.9" resistivity="20"/>
+    </Semiconductors>
+    <roughness/>
+</Materials>

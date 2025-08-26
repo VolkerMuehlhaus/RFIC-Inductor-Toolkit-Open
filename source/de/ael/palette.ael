@@ -1,0 +1,28 @@
+
+
+  defun mi_add_palette (WindowType) {
+  
+   decl MUEHLHAUS_INDUCTOR_PDK_BITMAP_DIR = strcat(MUEHLHAUS_INDUCTOR_PDK_PATH, "circuit/bitmaps/");
+   fputs(stderr, strcat("\nLoading Bitmaps from ", MUEHLHAUS_INDUCTOR_PDK_BITMAP_DIR));
+   
+   // add palette call, can be used for different window types  
+   de_define_library_palette("Inductor_Shapes_lib", WindowType, "analogRF_net","Inductor Toolkit","Inductor Toolkit", 0, 
+      list("Inductor_Shapes_lib", "ind_diff_2port", "", "differential 2-port octagon", strcat(MUEHLHAUS_INDUCTOR_PDK_BITMAP_DIR, "oct_diff_2port")),
+      list("Inductor_Shapes_lib", "ind_diff_3port", "", "differential 3-port octagon", strcat(MUEHLHAUS_INDUCTOR_PDK_BITMAP_DIR, "oct_diff_3port")),
+      list("Inductor_Shapes_lib", "ind_diff_stacked_2port", "", "differential 2-port octagon stacked on top metals", strcat(MUEHLHAUS_INDUCTOR_PDK_BITMAP_DIR, "oct_diff_stacked_2port")),
+      list("Inductor_Shapes_lib", "ind_diff_stacked_3port", "", "differential 3-port octagon stacked on top metals", strcat(MUEHLHAUS_INDUCTOR_PDK_BITMAP_DIR, "oct_diff_stacked_3port")),
+      list("Inductor_Shapes_lib", "ind_diff_pgs_2port", "", "differential 2-port octagon with patterned ground shield", strcat(MUEHLHAUS_INDUCTOR_PDK_BITMAP_DIR, "oct_diff_pgs_2port")),
+      list("Inductor_Shapes_lib", "ind_diff_pgs_3port", "", "differential 3-port octagon  with patterned ground shield", strcat(MUEHLHAUS_INDUCTOR_PDK_BITMAP_DIR, "oct_diff_pgs_3port")),  
+      list("Inductor_Shapes_lib", "ind_square_diff_2port", "", "differential 2-port square", strcat(MUEHLHAUS_INDUCTOR_PDK_BITMAP_DIR, "square_diff_2port")),
+      list("Inductor_Shapes_lib", "ind_square_diff_3port", "", "differential 3-port square", strcat(MUEHLHAUS_INDUCTOR_PDK_BITMAP_DIR, "square_diff_3port")),
+      list("Inductor_Shapes_lib", "ind_square_diff_stacked_2port", "", "differential 2-port square stacked on top metals", strcat(MUEHLHAUS_INDUCTOR_PDK_BITMAP_DIR, "square_diff_stacked_2port")),
+      list("Inductor_Shapes_lib", "ind_square_diff_stacked_3port", "", "differential 3-port square stacked on top metals", strcat(MUEHLHAUS_INDUCTOR_PDK_BITMAP_DIR, "square_diff_stacked_3port"))
+    );    
+  }
+  
+  
+  // add palette for schematic and layout window
+  mi_add_palette (LAYOUT_WINDOW);
+  mi_add_palette (SCHEMATIC_WINDOW);
+  
+

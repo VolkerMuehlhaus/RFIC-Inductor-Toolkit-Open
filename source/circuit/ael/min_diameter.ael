@@ -1,0 +1,313 @@
+
+
+// Utilities for calculating min diameter 
+
+
+defun square_single_min_diameter(N,w,s)
+{
+  // Calculate the minimum possible diameter for NON-differential square inductor 
+  // output unit is whatever the input unit is, meter or micron ...
+  
+  decl minD;
+  decl fullturns = int(N);
+  decl quarterturns = round(4*(N - fullturns));
+  
+  // underpass width factor from technology file
+  decl w_underpass = underpass_width_factor*w;  
+  if (w_underpass > max_underpass_width) {
+    // make sure underpass is not wider than maximum metal width
+    w_underpass=max_underpass_width;
+  }  	
+
+  
+  
+  if (quarterturns == 0)
+  {
+	  minD = 2*fullturns*w + 2*(fullturns-1)*s + 3*w + 4*s;
+
+  }
+  else if (quarterturns == 1)
+  {
+	  // one quarter turn
+	  minD = 2*fullturns*w + w + 2*(fullturns-1)*s + w_underpass + 2*s;
+  }
+
+  else if (quarterturns == 2)
+  {
+	  // two quarter turns
+	  minD = (2*fullturns+1)*w + (2*fullturns+1)*s + w_underpass;
+  }
+  else
+  {
+	  // three quarter turns
+	  minD = 2*(fullturns+1)*w + 2*(fullturns+1)*s + w_underpass;
+  }
+
+  return (minD);
+}
+
+defun square_single_min_diameter_old(N,w,s)
+{
+  // Calculate the minimum possible diameter for NON-differential square inductor (TowerJazz style)
+  // output unit is whatever the input unit is, meter or micron ...
+  
+  decl minD;
+  decl fullturns = int(N);
+  decl quarterturns = round(4*(N - fullturns));
+  
+  if (quarterturns == 0)
+  {
+	  minD = 2*fullturns*w + 2*(fullturns-1)*s + 5*w + s;
+
+  }
+  else if (quarterturns == 1)
+  {
+	  // one quarter turn
+	  minD = 2*fullturns*w + 2*(fullturns-1)*s + 5*w + s;
+  }
+
+  else if (quarterturns == 2)
+  {
+	  // two quarter turns
+	  minD = 2*fullturns*w + 2*(fullturns-1)*s + 6*w + 2*s;
+  }
+  else
+  {
+	  // three quarter turns
+	  minD = 2*fullturns*w + 2*(fullturns-1)*s + 6*w + 2*s;
+  }
+
+  return (minD);
+}
+
+
+
+defun octa_min_diameter(N,w,s)
+{
+  // Calculate the minimum possible diameter for our octagon layout
+  // output unit is whatever the input unit is, meter or micron ...
+  decl Di_min;
+  decl Do_min;
+  
+  // check diameter
+  decl crossover_size = 3*w + 2*s;
+  
+  // make sure we don't create a single via 
+  // here we have dimensions im SI units (meter)
+  decl size_for_two_vias =  1e-6 * (2 * mi_get_via_size(via_layer_spiral_crossover) + mi_get_via_gap(via_layer_spiral_crossover) + 2 * mi_get_via_margin(via_layer_spiral_crossover));
+  decl overlap_size = w;
+  if (w < size_for_two_vias) overlap_size = 1.1*size_for_two_vias;
+
+
+  // there is a minimum crossover width that must be respected
+  decl min_crossover_size = (2*s+w)*(sqrt(2)-1) + (s+w) +  2*overlap_size;
+   
+  if (crossover_size < min_crossover_size) crossover_size = min_crossover_size;	
+  
+  /*
+  fputs(stderr,sprintf("w=%.2e s=%.2e ", w,s));
+  fputs(stderr,sprintf("size_for_two_vias=%.2e ", size_for_two_vias));
+  fputs(stderr,sprintf("overlap_size=%.2e min_crossover_size=%.2e crossover_size=%.2e", overlap_size,min_crossover_size,crossover_size));
+  */
+
+  
+  if (N>1) {
+    Di_min = crossover_size * (1 + sqrt(2));
+  } else  {
+    // this diameter is smaller than Jazz PDK limit, but can be drawn
+    Di_min = 2*(w + s) *(1 + sqrt(2));  // for single turn inductor     
+  }
+
+  Do_min = (Di_min + 2*N*w + 2*(N-1)*s);
+  return (Do_min);
+}
+
+
+defun overlay_min_diameter(w,s)
+{
+  // Calculate the minimum possible diameter for overlay transformer layout
+  // output unit is whatever the input unit is, meter or micron ...
+  decl Di_min;
+  decl Do_min;
+  
+  // make sure we don't create a single via 
+  // here we have dimensions im SI units (meter)
+  decl size_for_two_vias =  1e-6 * (2 * mi_get_via_size(via_layer_spiral_crossover) + mi_get_via_gap(via_layer_spiral_crossover) + 2 * mi_get_via_margin(via_layer_spiral_crossover));
+  decl overlap_size = w;
+  if (w < size_for_two_vias) overlap_size = 1.01*size_for_two_vias;
+  
+  // calculate width of crossover section
+  decl crossover_size = 3*w + s;
+
+  // there is a minimum crossover width that must be respected
+  decl min_crossover_size = (2*s+w)*(sqrt(2)-1) + (s+w) + 2*overlap_size;
+
+  // extra space for underpass secondary turns
+  decl min_segment_size = min_crossover_size + 3*(w+s);
+
+  Di_min = min_segment_size * (1 + sqrt(2));
+
+  Do_min = Di_min + 2*w + s;
+  return (Do_min);
+}
+
+
+
+
+defun interleaved_min_diameter(N1,N2,w,s, is_octa)
+{
+  // Calculate the minimum possible diameter for octagon transformer layout
+  // here, N is the number of turns for primary
+  // output unit is whatever the input unit is, meter or micron ...
+  decl Di_min;
+  decl Do_min;
+  
+  decl crossover_size = 3*w + s; 
+  decl required_inner_length = crossover_size + 2*w + 2*s;
+  
+  if (is_octa) {
+    // octagon required inner diameter
+    Di_min = required_inner_length * (1 + sqrt(2));
+  } else {
+    // square just needs space for crossover
+    Di_min = crossover_size+2*w+2*s;  
+  }
+    
+  Do_min = Di_min + 2*(N1+N2)*w + 2*(N1+N2-2)*s;
+  return (Do_min);
+}
+
+
+
+defun interleaved2_octa_min_diameter(N,w,s)
+{
+  // Calculate the minimum possible diameter for octagon transformer layout
+  // here, N is the number of turns for primary
+  // output unit is whatever the input unit is, meter or micron ...
+  decl Di_min;
+  decl Do_min;
+  
+
+
+  decl crossover_size = 4*w + 3*s; 
+
+  decl required_inner_length = crossover_size + 2*w + 3*s;
+    
+  if (N>1) {
+    Di_min = required_inner_length * (1 + sqrt(2));
+  } else  {
+    Di_min = crossover_size * (1 + sqrt(2));  // for single turn inductor     
+  }
+
+  Do_min = Di_min + 4*N*w + 4*(N-1)*s;
+  return (Do_min);
+}
+
+
+
+defun octa_single_min_diameter(N,w,s)
+{
+  decl minD;
+  decl fullturns = int(N);
+  decl quarterturns = round(4*(N - fullturns));
+  
+  // underpass width factor from technology file
+  decl w_underpass = underpass_width_factor*w;  
+  if (w_underpass > max_underpass_width) {
+    // make sure underpass is not wider than maximum metal width
+    w_underpass=max_underpass_width;
+  }  	
+
+ 
+  if (quarterturns == 0)
+  {
+	  minD = 2*fullturns*w + 2*(fullturns-1)*s + 3*w + 4*s;
+
+  }
+  else if (quarterturns == 1)
+  {
+	  // one quarter turn
+	  minD = 2*fullturns*w + w + 2*(fullturns-1)*s + w_underpass + 2*s;
+  }
+
+  else if (quarterturns == 2)
+  {
+	  // two quarter turns
+	  minD = (2*fullturns+1)*w + (2*fullturns+1)*s + w_underpass;
+  }
+  else
+  {
+	  // three quarter turns
+	  minD = 2*(fullturns+1)*w + 2*(fullturns+1)*s + w_underpass;
+  }
+
+  minD = minD + (w + s)*sqrt(2);
+  return (minD);
+}
+
+
+
+defun square_min_diameter(N,w,s)
+{
+  // Calculate the minimum possible diameter for differential square layout
+  // output unit is whatever the input unit is, meter or micron ...
+  decl Di_min;
+  decl Do_min;
+
+  // check diameter
+  decl crossover_size = 3*w + 2*s;
+  if (N>1) {
+    Di_min = crossover_size  + 4*w; 
+  } else  {
+    Di_min = 4*w*(1 + sqrt(2));  // for single turn inductor
+  }
+
+  Do_min = Di_min + 2*N*w + 2*(N-1)*s;
+  return (Do_min);
+}
+
+
+
+defun IHP_min_diameter(N,w,s)
+{
+  // Calculate the minimum possible diameter for IHP octagon layout
+  decl Di_min;
+  decl Do_min;
+  
+  decl includeCenterTap = TRUE; // worst case min diameter
+
+
+  decl crossover_size = (2*s+w)*(sqrt(2)-1) + (s+w) + 2*w;
+  decl feedline_spacing;
+
+  if (N<3) 
+  {
+    // normal cases for 1 or 2 turns
+    feedline_spacing = w+s;
+    // exception: N=2 with center tap has special layout
+    if ((N==2)&&includeCenterTap) feedline_spacing = 2*(w+s);
+  } else 	{
+    // 3 or more turns
+    feedline_spacing = crossover_size + w + 2*s;
+  }  
+
+
+  // minimum inner diameter w.r.t. feedline spacing
+  if (N>1)
+  {
+    if (crossover_size > feedline_spacing)
+    {
+      Di_min = crossover_size * (1 + sqrt(2));
+    } else {
+      Di_min = (feedline_spacing + w) * (1 + sqrt(2));
+    }
+  } else {
+    // for N=1 we can build small diameters
+      Di_min = (s + 2*w) * (1 + sqrt(2));
+  }
+
+
+  Do_min = Di_min + 2*N*w + 2*(N-1)*s;
+  return (Do_min);
+}
+

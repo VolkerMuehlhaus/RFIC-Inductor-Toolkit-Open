@@ -1,0 +1,830 @@
+
+// Shared utilities for regular AEL and data display dk_defined_fun.ael
+
+
+
+// function to test name of technology file
+defun test_for_libname (find_this)
+{
+  decl libraryList;
+  if (is_function_defined("de_get_open_libraries")) {    
+    libraryList = de_get_open_libraries(TRUE);
+  } else {
+    // we get here in dk_defined_fun case -> avoid error message
+    libraryList = list("");    
+  }
+  decl listsize = listlen(libraryList);
+  decl i;
+  decl openLibName;
+  decl foundLib = "";
+
+
+  for ( i=0; i < listsize; i++)
+  {
+      openLibName = nth(i, libraryList);
+      
+      // find required name, and make sure we have "tech" or "layers" in that name, to make sure it is not the component library
+      decl name_pos = index(toupper(openLibName), toupper(find_this));
+      decl tech_pos = index(toupper(openLibName), "_TECH");
+      decl layers_pos = index(toupper(openLibName), "_LAYERS");
+      
+      if ((name_pos!= -1) && ((tech_pos!= -1) || (layers_pos != -1)))
+      {
+	// we have found the searched (sub)string
+	foundLib = openLibName;
+      }
+  }
+  return foundLib;
+}
+  
+ 
+
+
+defun Muehlhaus_get_real_from_csv (filename, keyword, index)
+{
+  // read a floating point number from a csv file
+  // index specifies which data line we want 
+  // first data line index is 1 (not zero)
+  
+  decl fID;
+  decl fline;
+  decl result = -1; // default
+  decl parsed_line; // the line split into multiple items
+  decl item; 	    
+  decl num_items;   // the number of items in the csv file 
+  decl i;
+  decl item_index = -1;  // index of the wanted item in the list
+  
+  
+  filename = strcat(getcwd(),filename); // filename is relative to current workspace
+
+  fID = fopen(filename, "R");  // open file for reading
+  if (fID!=NULL) {
+    // we can read the file
+    fline=fgets(fID);  // first line should have the parameters
+    
+      if (fline != "") {
+      // we have a first line to evaluate
+      parsed_line = parse(fline,",", NULL); // parse and converted to numbers or strings
+      num_items = listlen(parsed_line);
+      
+      // try to find the keyword in the list of items
+      for ( i=0; i<num_items; i++ ) {
+        item = nth(i, parsed_line);
+        if (item==keyword) {
+          // we found our keyword in the list
+          item_index=i;
+        }        
+      }  
+        
+      if (item_index>=0) {
+        // We have found our keyword in the header line and know that 
+        // the item is at position item_index
+        // Now, we can read the next lines and get the desired value
+        for ( i=0; i<=index; i++ ) {
+          fline=fgets(fID);  // proceed until we have the requested line
+        }
+        // From the desired line, read the item that we need
+        // Now get our item    
+        if (fline != NULL) 
+        {
+          parsed_line = parse(fline,",", NULL); // parse and convert to numbers or strings
+          item = nth(item_index, parsed_line);
+  	  result = val(item);     
+  	} else {
+  	  result = 0;
+  	  fputs(stderr,sprintf("Could not get value: file %s, keyword %s, index %i ",filename, keyword, index ));
+  	}
+  	
+        // fputs(stderr, strcat("get_real_from_csv:", keyword, " = ",identify_value(result)));
+      }        
+    }    
+    fclose(fID);  // finally close file
+  }   
+  return result; 
+}
+
+
+// -----------------------------------------------------
+
+
+defun Muehlhaus_write_string_fullpath (filename, mystring)
+{
+  // write a string to the file with full path, overwrite file if it existed
+  decl fID = fopen(filename, "W");  // open file for reading
+  if (fID!=NULL) {
+    fputs(fID, mystring);    
+    fclose(fID);  // finally close file
+  }
+}
+
+
+defun Muehlhaus_write_string(filename, mystring)
+{
+  // write a string to the file in the curent workspace, overwrite file if it existed
+  filename = strcat(getcwd(),filename); // filename is relative to current workspace
+  Muehlhaus_write_string_fullpath (filename, mystring);
+}
+
+
+defun Muehlhaus_read_string_fullpath (filename)
+{
+  // read from file with full path 
+  decl fID = fopen(filename, "R");  // open file for reading
+  decl fline;
+
+  if (fID != NULL) {
+    fline=fgets(fID);
+    fclose(fID);  // finally close file
+  }
+  
+  if ((fline=="") || (fID==NULL)) {
+    // empty string -> return zero
+    return "()";
+  } else {
+    // hopefully we could read a string
+    return fline;
+  }
+}
+
+
+defun Muehlhaus_read_string(filename)
+{
+  // read from file in current workspace
+  filename = strcat(getcwd(),filename); // filename is relative to current workspace
+  return Muehlhaus_read_string_fullpath (filename);
+}
+
+
+
+defun Muehlhaus_write_var(filename, value)
+{
+
+  filename = strcat(getcwd(),filename); // filename is relative to current workspace
+  decl fID = fopen(filename, "W");  // open file for writing
+
+  if (fID != NULL) {
+       
+    fputs(fID, sprintf("%.5e", value));
+    
+    fclose(fID);  // finally close file
+  } else {
+    fputs(stderr,strcat("Could not write to file: ", filename));
+  }
+  return filename;
+}
+
+
+
+defun Muehlhaus_read_var(filename)
+{
+  decl thestring = read_string_value(filename);
+  if ((thestring != "()") && (thestring != NULL))  {
+    // we have a straing value
+    return val(thestring);
+  } else {
+    // could not extract a number
+   fputs(stderr,strcat("Could not read number, filename: ", filename));
+   return 0;
+  }
+}
+
+
+// for compatibility with old functions
+
+defun read_var_value (filename)
+{
+  return Muehlhaus_read_var(filename);
+}  
+
+defun read_string_value (filename)
+{
+  return Muehlhaus_read_string(filename);
+}  
+
+
+defun write_var_value (filename, value)
+{
+  Muehlhaus_write_var(filename, value);
+  return value;
+}
+
+defun write_string_value (filename, value)
+{
+  Muehlhaus_write_string(filename, value);
+  return value;
+}
+
+
+
+
+// ============================= dimension checks ================================
+
+defun check_width_and_spacing (w_min, w_max, s_min, s_max, w_step, s_step, N_step) 
+{
+  // Check the dimensions against the technolgy limits, and return a string with a warning message, 
+  // or an empty string if everything is ok
+  
+  decl warning = "";
+  
+  if (w_min < min_linewidth) warning = strcat(warning, sprintf("%sDRC warning: technology limit for w_min is %.2f um\n",warning, min_linewidth));
+  if (w_max > max_linewidth) warning = strcat(warning, sprintf("%sDRC warning: technology limit for w_max is %.2f um\n",warning, max_linewidth));
+  if (s_min < min_spacing) warning = strcat(warning, sprintf("%sDRC warning: technology limit for s_min is %.2f um\n",warning, min_spacing));
+  
+  if (s_step != NULL)  { if (s_step <= 0) warning = strcat(warning, "Only numbers allowed for s_step"); }
+  if (N_step != NULL)  { if (N_step <= 0) warning = strcat(warning, "Only numbers allowed for N_step"); }
+  
+  return warning;
+
+}
+
+
+defun check_turns (N_min, N_max, N_step) 
+{
+  // Make sure we have full turns only, 
+  // fraction turns are added by inductor menu choice as needed
+   
+  decl warning = "";
+
+  decl LayoutName = Muehlhaus_read_string("/inductor_toolkit/layoutname.csv");
+  
+  if (((N_min - floor(N_min))  > 0.01) || ((N_max - floor(N_max))  > 0.01) || ((N_step - floor(N_step))  > 0.01)) {
+      warning = "Error: Specify full turns only. Direction added internally."; 
+  }  
+  
+  return warning;
+
+}
+
+
+
+// ============================= the core synthesis function ================================
+
+
+defun calculate_inductor_diameter (N, w, s, Ltarget, K1, K2, L0)
+{
+  // Calculate the inductance from Wheeler's equation, based on N,w,s and target L
+  // This calculation is for DC
+  // Valid for normal spiral and overlay transformer, 
+  // *NOT* VALIF FOR INTERLEAVED TRANSFORMER
+
+  // input data is already in MKS units, no need for conversion
+  
+ 
+  decl Dout = 0;
+  decl Lsyn = Ltarget - L0;
+
+
+  decl b = 2*N*w + 2*(N-1)*s;  // difference between outer and inner diameter
+  decl c = K1*u0*N*N; 	       // constant in Wheeler's equation
+
+  // Mitternachtsformel x^2 + px + q
+  decl p = -(b + Lsyn/c);
+  decl q = b*b/4 - Lsyn*b*(K2-1)/(2*c);
+
+  Dout = -p/2 + sqrt(p*p/4-q);
+
+  return (Dout);
+}
+
+
+defun calculate_interleaved_diameter (N1, N2, w, s, Ltarget, K1, K2, L0)
+{
+  // Calculate the primary inductance from Wheeler's equation, based on N,w,s and target L1
+  // Valid for INTERLEAVED TRANSFORMER only
+
+  // input data is already in MKS units, no need for conversion
+  
+ 
+  decl Dout = 0;
+  decl Lsyn = Ltarget - L0;
+
+  decl N_common;
+  if (N1<N2) N_common=N1; else N_common=N2;
+  decl N1_extra  = N1-N_common;
+  decl N2_extra  = N2-N_common;
+
+  decl b = 4*N_common*w + 4*(N_common-1)*s + N1_extra * (w+s); // difference between outer and inner diameter
+  decl c = K1*u0*N1*N1; 	       // constant in Wheeler's equation
+
+  // Mitternachtsformel x^2 + px + q
+  decl p = -(b + Lsyn/c);
+  decl q = b*b/4 - Lsyn*b*(K2-1)/(2*c);
+
+  Dout = -p/2 + sqrt(p*p/4-q);
+  Dout = Dout + 0.5*(w+s);    	// special layout, changes diameter half way!
+
+  return (Dout);
+}
+
+
+
+defun clear_cal_sweeplist (filename)
+{
+  // create empty inductor sweeplist, only header line. We use this before adding various calibration parameter sets
+  decl fID = fopen(filename, "W");
+  if (fID != NULL) {
+    fputs(fID,"BEGIN DSCRDATA");   
+    fputs(fID,"% INDEX N dout w s wshield");
+    fclose(fID);  // finally close file
+  }  
+}
+
+defun create_inductor_sweeplist (Nmin,Nmax, Nstep, wmin,wmax,dw, smin, smax, ds, Dout_max, wshield, Ltarget, filename)
+{
+  // regular sweep list, as used in "set target" data display form
+  return create_sweeplist_or_calibrationlist (Nmin,Nmax, Nstep, wmin,wmax,dw, smin, smax, ds, Dout_max, wshield, Ltarget, filename, FALSE);
+}
+
+defun create_sweeplist_or_calibrationlist (Nmin,Nmax, Nstep, wmin,wmax,dw, smin, smax, ds, Dout_max, wshield, Ltarget, filename, is_cal_list)
+{  
+  // create an output file with all valid combinations in the given range
+  // check valid results before writing
+  // return value is number of written parameter combinations
+
+  // parameters:
+  // Nmin, Nmax: sweep range for number of turns
+  // Nstep: step in number of turns. Usually 1, but can be set to 2 for special pCells that can only do even number of turns.
+  // wmin,wmax, dw: sweep range and step size for line width
+  // smin,smax, sw: sweep range and step size for line spacing
+  // Dout_max: limit for maximum inductor size
+  // wshield: finger width for ground shield (if applicable)
+  // Ltarget: traget inductance to synthesize
+  // filename: output target (*.csv file) for calculated paramater combinations
+
+  decl N;
+  decl w;
+  decl s;
+  decl Dout;
+  decl Dmin;
+  decl numValues=0;
+
+  decl wmax_possible = wmin; // this variable will hold the maximum POSSIBLE width for a given combination of Ltarget, N and s
+  decl widthFactor = 1.4;  // factor for log step in width
+
+  /*
+  fputs(stderr,sprintf("Nmin=%d Nmax=%d Nstep=%d", Nmin, Nmax, Nstep));
+  fputs(stderr,sprintf("wmin=%.2f wmax=%.2f wstep=%.2f", wmin*1e6,wmax*1e6,dw*1e6));
+  fputs(stderr,sprintf("smin=%.2f smax=%.2f sstep=%.2f", smin*1e6,smax*1e6,ds*1e6));
+  fputs(stderr,sprintf("Doutmax=%.2f ", Dout_max*1e6));
+  fputs(stderr,sprintf("wshield=%.2f ", wshield*1e6));
+  fputs(stderr,sprintf("Larget=%.2e ", Ltarget));
+  fputs(stderr,strcat("filename= ", filename));
+  */
+  
+  
+  // get the shape , square or octagon
+  decl inductor_shape = Muehlhaus_read_string("/inductor_toolkit/shape.csv");
+  
+  // get shape dependent calculation factors K1, K2 and offset L0
+  decl K1 = Muehlhaus_read_var("/inductor_toolkit/K1.csv");
+  decl K2 = Muehlhaus_read_var("/inductor_toolkit/K2.csv");
+  decl L0 = Muehlhaus_read_var("/inductor_toolkit/L0.csv");
+  
+
+  // check if we need to round the number of turns to the nearest full turn
+  if (inductor_shape=="square_single") {
+    // quarter turns are possible
+    Nmin = round(4*Nmin)/4;
+    Nmax = round(4*Nmax)/4;
+    Nstep = round(4*Nstep)/4;
+  } else {
+  
+    if (inductor_shape=="octagon_single") {
+      // only N.5 turns are possible
+      Nmin=floor(Nmin)+0.5;
+      Nmax=floor(Nmax)+0.5;
+      Nstep=round(Nstep);
+    
+    } else {
+      if (inductor_shape=="circular") {
+	// all fractional turns are possible
+	Nstep=round(Nstep);
+
+      } else {
+	// only full turns are possible
+	Nmin=floor(Nmin);
+	Nmax=floor(Nmax);
+	Nstep=round(Nstep);
+      }
+    }  
+  };
+  
+  // special case: single turn inductor
+  if (inductor_shape=="pH_single") {
+    Nmin = 1;
+    Nmax = 1;
+    Nstep = 1;
+  }  
+
+
+
+  // Check for use of automatic width step, instead of manual. 
+  // This creates a log spaced width step as needed. 
+  // We will interpolate width anyway for the fine tune step.
+  decl auto_width = (dw <= 0);   
+
+ 
+  filename = strcat(getcwd(),filename); // filename is relative to current workspace
+  decl fID;
+  if (is_cal_list==TRUE) fID = fopen(filename, "A");  // open file for append
+  else fID = fopen(filename, "W");  // open file for writing (overwrite)
+
+  if ((Nmin<=Nmax) && (wmin<=wmax) && (smin<=smax) &&(ds>0) && (fID != NULL)) {
+    
+
+    // write inductor sweeplist header line
+    if (is_cal_list==FALSE) fputs(fID,"N,dout,w,s,wshield");   // no spaces allowed here!
+
+    N = Nmin;
+    while (N<=Nmax) {
+      s=smin;
+      while (s<=smax) {
+        
+        
+        if (auto_width)  {
+          // only required if we want automatic width step: 
+          // find out what is the maximum possible width for this combination of Ltarget, N and s
+	  w = wmin;
+	  wmax_possible = wmin; 
+
+  
+	  while (w<=wmax) {
+	    Dout = calculate_inductor_diameter (N, w, s, Ltarget, K1, K2, L0);  // calculate dimension
+	    if (inductor_shape=="octagon_diff") Dmin = octa_min_diameter(N,w,s); 
+	    if (inductor_shape=="ihp_octagon") Dmin = IHP_min_diameter(N,w,s); 
+	    if (inductor_shape=="octagon_single") Dmin = octa_single_min_diameter(N,w,s); 
+	    if (inductor_shape=="square_diff") Dmin = square_min_diameter(N,w,s); 
+	    if (inductor_shape=="square_single") Dmin = square_single_min_diameter(N,w,s); 
+	    if (inductor_shape=="pH_single") Dmin = 3.5*w + s; // guess what looks ok, no strict limit
+
+	    if ((Dout>=Dmin) && (Dout<=Dout_max)) {
+	    // Geometry is valid -> this width is possible
+	      wmax_possible = w;
+	    } 
+
+	    if ((w < wmax) && (w * 1.1 < wmax)) {w = w * 1.1;} 
+	    else { if (w < wmax) {w = wmax;} else {w = w * 1.1;}}
+	  }
+
+
+  
+	  // now that we have found the max possible width, calculate the new step
+	  if (wmax_possible/wmin > 4) { 
+	    widthFactor=sqrt(sqrt(wmax_possible/wmin)); 
+	  } else {
+	    widthFactor=sqrt(wmax_possible/wmin);
+	  }  
+	  
+          // don't go too small in the steps
+          if (widthFactor < 1.2) {
+            widthFactor=1.2; 
+	  }  
+
+        }
+          
+                
+        // now do the real loop where the sweep list is created
+        w=wmin;
+	while (w<=wmax) {
+	
+	
+	  // inner loop, here we can synthesize the inductor dimensions
+
+ 	  Dout = calculate_inductor_diameter (N, w, s, Ltarget, K1, K2, L0);  // calculate dimension
+
+	  // Check minimum possible diameter
+	  if (inductor_shape=="octagon_diff") Dmin = octa_min_diameter(N,w,s); 
+	  if (inductor_shape=="ihp_octagon") Dmin = IHP_min_diameter(N,w,s); 
+	  if (inductor_shape=="octagon_single") Dmin = octa_single_min_diameter(N,w,s); 
+	  if (inductor_shape=="square_diff") Dmin = square_min_diameter(N,w,s); 
+	  if (inductor_shape=="square_single") Dmin = square_single_min_diameter(N,w,s); 
+	  if (inductor_shape=="pH_single") Dmin = 3.5*w + s; // guess what looks ok, no strict limit
+
+
+	  if ((Dout>=Dmin) && (Dout<=Dout_max)) {
+	    // Geometry is valid -> write out the parameters
+	    // dimensions must be in microns
+	    
+	    // sweep list and calibration list use different format
+	    if (is_cal_list==FALSE) fputs(fID, sprintf("%.2f,%.2f,%.2f,%.2f,%.2f", N, Dout*1e6, w*1e6, s*1e6, wshield*1e6));
+	    else fputs(fID, sprintf("%.2f %.2f %.2f %.2f %.2f", N, Dout*1e6, w*1e6, s*1e6, wshield*1e6));
+	    
+	    numValues = numValues + 1;
+	  } else {
+	    // this layout was discarded
+  	    // fputs(stderr,sprintf("discarded layout: N=%.2f, w=%.2f, s=%.2f, Dout=%.2f, Dmin=%.2f, Dmax=%.2f", N, w*1e6, s*1e6, Dout*1e6, Dmin*1e6, Dout_max*1e6));
+	  }
+
+
+	  if (auto_width)  {
+	    // automatic step in width
+	    if ((w < wmax) && (w * widthFactor < 0.95*wmax))  // to avoid duplicates from rounding
+	    {
+	      // normal case for automatic (log) width step
+	      w = w * widthFactor;
+	    } else {
+	      // next step is at upper limit
+	      if (w < wmax) 
+	      {
+		w = wmax;  // final
+	      } else {
+		w = w * widthFactor;  // makes loops exit
+	      }
+	    }
+   
+
+	  } else {
+	    // manual step in width, set by the user
+	    if ((w < wmax) && (w + dw < wmax))
+	    {
+	      // normal case for manual (linear) width step
+	      w=w+dw;
+	    } else {
+	      // next step is at upper limit
+	      if (w < wmax) 
+	      {
+		w=wmax;  // final
+	      } else {
+		w=w+dw;  // makes loops exit
+	      }
+	    }
+	  }  
+
+	}  
+
+	if ((s < smax) && (s + ds < smax))
+	{
+	  // normal case
+	  s=s+ds;
+	} else {
+	  // next step is at upper limit
+	  if (s < smax) 
+	  {
+	    s=smax; // final
+	  } else {
+	    s=s+ds; // makes loop exit
+	  }  
+	}
+
+	if (N==1) {
+	  // for N=1 we don't need to loop across different spacings
+	  s=smax+ds; // larger than max -> exit loop
+	}
+
+      }
+      N = N+Nstep;
+    }
+  }
+  
+  if (fID != NULL) fclose(fID);  // finally close file
+  return (numValues);  // return value is number of written parameter combinations
+
+}
+
+
+defun rewrite_finetune_sweeplist (N, w, s, wshield, Dout, filename)
+{  
+  // write dimensions to file, no need to claculate something here
+
+  filename = strcat(getcwd(),filename); // filename is relative to current workspace
+  decl fID = fopen(filename, "W");  // open file for writing
+
+  // write header line
+  fputs(fID,"N,dout,w,s,wshield");   // no spaces allowed here!
+  fputs(fID, sprintf("%.2f,%.2f,%.2f,%.2f,%.2f", N, Dout*1e6, w*1e6, s*1e6, wshield*1e6));
+  if (fID != NULL) fclose(fID);  // finally close file
+  return 1; 
+
+}
+
+
+//---------------------- transformer -----------------------------
+
+defun create_overlay_balun_sweeplist (wmin,wmax,dw, smin, smax, ds, Dout_max, Lnominal, filename)
+{
+
+  return create_balun_sweeplist (2, 1, wmin, wmax,dw, smin, smax, ds, Dout_max, Lnominal, filename, TRUE, FALSE, FALSE);
+}
+
+defun create_interleaved_balun_sweeplist (N1, N2, wmin, wmax, dw, smin, smax, ds, Dout_max, Lnominal, is_stacked, is_square, filename)
+{
+  /*
+  fputs(stderr,"create_interleaved_balun_sweeplist");
+  fputs(stderr,sprintf("N1=%.2f N2=%.2f", N1, N2));
+  fputs(stderr,sprintf("wmin=%.2f wmax=%.2f wstep=%.2f", wmin*1e6,wmax*1e6,dw*1e6));
+  fputs(stderr,sprintf("smin=%.2f smax=%.2f sstep=%.2f", smin*1e6,smax*1e6,ds*1e6));
+  fputs(stderr,sprintf("Doutmax=%.2f ", Dout_max*1e6));
+  fputs(stderr,sprintf("Lnominal=%.2e ", Lnominal));
+  fputs(stderr,strcat("filename= ", filename));
+  fputs(stderr,strcat("is_stacked= ", identify_value(is_stacked)));
+  fputs(stderr,strcat("is_square= ", identify_value(is_square)));
+  */
+  
+  return create_balun_sweeplist (N1, N2, wmin, wmax, dw, smin, smax, ds, Dout_max, Lnominal, filename, FALSE, is_stacked, is_square);
+
+}
+
+
+defun create_balun_sweeplist (N1, N2, wmin, wmax,dw, smin, smax, ds, Dout_max, Lnominal, filename, is_overlay, is_stacked, is_square)
+{  
+  // create an output file with all valid combinations in the given range
+  // check valid results before writing
+  // return value is number of written parameter combinations
+
+  // parameters:
+  // wmin,wmax, dw: sweep range and step size for line width
+  // smin,smax, sw: sweep range and step size for line spacing
+  // Dout_max: limit for maximum inductor size
+  // Ltarget: traget inductance to synthesize
+  // filename: output target (*.csv file) for calculated paramater combinations
+
+  
+  decl w;
+  decl s;
+  decl Dout;
+  decl Dmin;
+  decl numValues=0;
+  
+  decl Lfactor = sqrt(2);
+  decl Lmin = Lnominal/2.0; // L is varied up/down during synthesis
+  decl Lmax = Lnominal*2.1; // L is varied up/down during synthesis
+
+  decl wmax_possible = wmin; // this variable will hold the maximum POSSIBLE width for a given combination of Ltarget, N and s
+  decl widthFactor = 1.4;  // factor for log step in width
+
+  fputs(stderr,"create_balun_sweeplist");
+  fputs(stderr,sprintf("N1=%.2f N2=%.2f", N1, N2));
+  fputs(stderr,sprintf("wmin=%.2f wmax=%.2f wstep=%.2f", wmin*1e6,wmax*1e6,dw*1e6));
+  fputs(stderr,sprintf("smin=%.2f smax=%.2f sstep=%.2f", smin*1e6,smax*1e6,ds*1e6));
+  fputs(stderr,sprintf("Doutmax=%.2f ", Dout_max*1e6));
+  fputs(stderr,sprintf("Lnominal=%.2e ", Lnominal));
+  fputs(stderr,strcat("filename= ", filename));
+  fputs(stderr,strcat("is_stacked= ", identify_value(is_stacked)));
+  fputs(stderr,strcat("is_square= ", identify_value(is_square)));
+  
+  // get the shape , square or octagon
+  // decl inductor_shape = Muehlhaus_read_string("/inductor_toolkit/shape.csv");
+  
+  // get shape dependent calculation factors K1, K2 and offset L0
+  decl K1 = Muehlhaus_read_var("/inductor_toolkit/K1.csv");
+  decl K2 = Muehlhaus_read_var("/inductor_toolkit/K2.csv");
+  decl L0 = Muehlhaus_read_var("/inductor_toolkit/L0.csv");
+
+
+  // Check for use of automatic width step, instead of manual. 
+  // This creates a log spaced width step as needed. 
+  // We will interpolate width anyway for the fine tune step.
+  decl auto_width = (dw <= 0);   
+
+ 
+  filename = strcat(getcwd(),filename); // filename is relative to current workspace
+  decl fID;
+
+  fID = fopen(filename, "W");  // open file for writing (overwrite)
+  if (fID != NULL) fputs(stderr,"fID ok, can write to file");
+
+  if ((wmin<=wmax) && (smin<=smax) &&(ds>0) && (fID != NULL)) {
+    fputs(stderr,strcat("Start writing to file '", filename, "'"));
+ 
+    // write inductor sweeplist header line
+    fputs(fID,"Lnom,N1,N2,dout,w,s");   // no spaces allowed here!
+
+
+    // we try different L values, up and down from nominal
+    decl Ltarget = Lmin;
+    
+    while (Ltarget <= Lmax) {
+   
+
+      s=smin;
+      while (s<=smax) {
+
+	if (auto_width)  {
+	  // begin auto width settings
+
+	  // only required if we want automatic width step: 
+	  // find out what is the maximum possible width for this combination of Ltarget, N and s
+	  w = wmin;
+	  wmax_possible = wmin; 
+
+
+	  while (w<=wmax) {
+	    if (is_overlay) {
+	      Dout = calculate_inductor_diameter (N1, w, s, Ltarget, K1, K2, L0);  // calculate dimension
+	      Dmin = overlay_min_diameter(w,s); // Check minimum possible diameter
+	    } else {
+	      Dout = calculate_interleaved_diameter (N1, N2,  w, s, Ltarget, K1, K2, L0);  // calculate dimension
+	      Dmin = interleaved_min_diameter(N1, N2, w,s, (NOT is_square)); // Check minimum possible diameter
+	    }  
+
+	    if ((Dout>=Dmin) && (Dout<=Dout_max)) {
+	    // Geometry is valid -> this width is possible
+	      wmax_possible = w;
+	    } 
+
+	    if ((w < wmax) && (w * 1.1 < wmax)) w = w * 1.1; 
+	    else { if (w < wmax) w = wmax; else w = w * 1.1;}
+	  }
+
+	  // now that we have found the max possible width, calculate the new step
+	  if (wmax_possible/wmin > 4) widthFactor=sqrt(sqrt(wmax_possible/wmin)); else widthFactor=sqrt(wmax_possible/wmin);
+
+	  // don't go too small in the steps
+	  if (widthFactor < 1.2) widthFactor=1.2; 
+	}
+
+	// finished auto width settings
+
+
+
+	// now do the real loop where the sweep list is created
+	w=wmin;
+	while (w<=wmax) {
+
+	  // inner loop, here we can synthesize the inductor dimensions
+
+	  if (is_overlay) {
+	    Dout = calculate_inductor_diameter (N1, w, s, Ltarget, K1, K2, L0);  // calculate dimension
+	    Dmin = overlay_min_diameter(w,s); // Check minimum possible diameter
+	  } else {
+	    Dout = calculate_interleaved_diameter (N1, N2,  w, s, Ltarget, K1, K2, L0);  // calculate dimension
+	    Dmin = interleaved_min_diameter(N1, N2, w,s, (NOT is_square)); // Check minimum possible diameter
+	  }  
+	  
+
+	  if ((Dout>=Dmin) && (Dout<=Dout_max)) {
+	    // Geometry is valid -> write out the parameters
+	    // dimensions must be in microns
+
+	    // sweep list format with comma
+	    fputs(fID, sprintf("%.2e,%.2f,%.2f,%.2f,%.2f,%.2f", Ltarget, N1, N2, Dout*1e6, w*1e6, s*1e6));
+
+	    numValues = numValues + 1;
+	  } else {
+	    // this layout was discarded
+	  }
+
+
+	  if (auto_width)  {
+	    // automatic step in width
+	    if ((w < wmax) && (w * widthFactor < wmax))
+	    {
+	      // normal case for automatic (log) width step
+	      w = w * widthFactor;
+	    } else {
+	      // next step is at upper limit
+	      if (w < wmax) w = wmax;   else w = w * widthFactor;  // makes loops exit
+	    }
+
+
+	  } else {
+	    // manual step in width, set by the user
+	    if ((w < wmax) && (w + dw < wmax))
+	    {
+	      // normal case for manual (linear) width step
+	      w=w+dw;
+	    } else {
+	      // next step is at upper limit
+	      if (w < wmax) w=wmax;  else w=w+dw;  // makes loops exit
+	    }
+	  }  //if auto_width
+
+	}  //while
+
+	if ((s < smax) && (s + ds < smax))	{
+	  // normal case
+	  s=s+ds;
+	} else {
+	  // next step is at upper limit
+	  if (s < smax) s=smax; else s=s+ds; // makes loop exit
+	}
+
+      } // while (w<=wmax) real loop
+      
+      Ltarget = Ltarget * Lfactor;
+
+    } // while (Ltarget <= Lmax)
+  } // if ((wmin<=wmax) && (smin<=smax) &&(ds>0) && (fID != NULL)) {
+ 
+  
+  if (fID != NULL) fclose(fID);  // finally close file
+  return (numValues);  // return value is number of written parameter combinations
+
+}
+
+
+defun write_best_transformer_params (N1, N2, w, s, dout, Lnom, filename)
+{  
+  // write dimensions to file, no need to claculate something here
+
+  filename = strcat(getcwd(),filename); // filename is relative to current workspace
+  decl fID = fopen(filename, "W");  // open file for writing
+
+  // write header line
+  fputs(fID,"N1,N2,dout,w,s,Lnom");   // no spaces allowed here!
+  fputs(fID, sprintf("%.2f,%.2f,%.2f,%.2f,%.2f,%.3e", N1, N2,dout, w, s, Lnom));
+  if (fID != NULL) fclose(fID);  // finally close file
+  return 1; 
+
+}

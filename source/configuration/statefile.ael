@@ -1,0 +1,8 @@
+// This code can change settings in the emSetup/emModel statefiles, to set simulation options
+
+// do not change, unless instructed by Muehlhaus support
+defun update_statefile_userdefined() 
+{
+  set_all_emModel_userstring ("purposesToIgnore","filler nofill");  	
+  set_all_emModel_userstring ("ignorePurposes","True");  	
+}  

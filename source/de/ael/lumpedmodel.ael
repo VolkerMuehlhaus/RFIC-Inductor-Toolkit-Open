@@ -1,0 +1,203 @@
+
+defun Muehlhaus_CreateLumpedModel () {
+
+  // open an existing schematic and set the variables for optimization from calculated values
+  // the calculated values have been calculated and written to file before by a special data display page.
+
+  // find out which schematic to use
+  // for inductor with groundshield, we have different lumped model
+  
+ 
+  decl LayoutName = Muehlhaus_read_string("/inductor_toolkit/layoutname.csv");
+  decl withCentertap  = (Muehlhaus_read_string("/inductor_toolkit/centertap.csv") == "1");
+  decl withShield  = (Muehlhaus_read_string("/inductor_toolkit/shield.csv") == "1");
+  decl success = FALSE;
+  
+  
+  if (withCentertap) open_cellview_window("Inductor_EM_Models_lib", "fit_circuitmodel_3port", "schematic");  
+  else open_cellview_window("Inductor_EM_Models_lib", "fit_circuitmodel_2port", "schematic"); 
+  
+  decl opt_context = de_get_current_design_context();
+
+  de_set_window_by_sequence(0, 0);
+
+  decl Ls = val(Muehlhaus_read_string("/inductor_toolkit/startvalue_L.csv"));
+  decl Lk = 0.1*Ls;
+  decl Rs = val(Muehlhaus_read_string("/inductor_toolkit/startvalue_R.csv"));
+  decl Rk = 0.2*Rs;
+  decl Cox = val(Muehlhaus_read_string("/inductor_toolkit/startvalue_Cox.csv"));
+  decl Csub = val(Muehlhaus_read_string("/inductor_toolkit/startvalue_Csub.csv"));
+  decl Rsub = val(Muehlhaus_read_string("/inductor_toolkit/startvalue_Rsub.csv"));
+  decl Cp   = val(Muehlhaus_read_string("/inductor_toolkit/startvalue_Cp.csv"));
+  decl fmax_fit = val(Muehlhaus_read_string("/inductor_toolkit/startvalue_fmax.csv"));
+  decl f_Qmax = val(Muehlhaus_read_string("/inductor_toolkit/startvalue_fQmax.csv"));
+
+
+  // handle the case where calculated Csub is negative
+  decl Csub_max = 5*Csub;
+  if (Csub < 0) {
+    Csub = 0;  // can't be negative!
+    Csub_max = 5 * Cox;  // max value derived from Cos in this case, not from invalid Csub
+  }
+
+
+  decl thedata = Muehlhaus_read_string("/inductor_toolkit/modelfile.csv");
+  decl thedataset = strcat("\"",thedata, ".ds\"");
+
+  // set variables
+  decl itemInfo0SP = de_edit_item("ModelVar");
+  de_set_item_id(itemInfo0SP, "ModelVar");
+
+  if (!withShield) {
+
+    if (!withCentertap) {
+      de_set_item_parameters(itemInfo0SP, list(list(prm_ex("ads_datacmps","VarFormStdForm",
+	    prm_ex("ads_datacmps","VarNameForm","Ls"),prm_ex("ads_datacmps","VarValueForm",sprintf("%.5e opt{ %.5e to %.5e }", Ls, 0.5*Ls, 2*Ls))),prm_ex("ads_datacmps","VarFormStdForm",
+	    prm_ex("ads_datacmps","VarNameForm","Rs"),prm_ex("ads_datacmps","VarValueForm",sprintf("%.5e opt{ %.5e to %.5e }", Rs, 0.2*Rs, 5*Rs))),prm_ex("ads_datacmps","VarFormStdForm",
+	    prm_ex("ads_datacmps","VarNameForm","Cp"),prm_ex("ads_datacmps","VarValueForm",sprintf("%.5e opt{ %.5e to %.5e }", Cp/2, 0, 10*Cp))),prm_ex("ads_datacmps","VarFormStdForm",
+	    prm_ex("ads_datacmps","VarNameForm","Cp2"),prm_ex("ads_datacmps","VarValueForm",sprintf("%.5e opt{ %.5e to %.5e }", Cp/2, 0, 10*Cp))),prm_ex("ads_datacmps","VarFormStdForm",
+	    prm_ex("ads_datacmps","VarNameForm","Rk"),prm_ex("ads_datacmps","VarValueForm",sprintf("%.5e opt{ %.5e to %.5e }", Rk, 0.1*Rs, 50*Rk))),prm_ex("ads_datacmps","VarFormStdForm",
+	    prm_ex("ads_datacmps","VarNameForm","Lk"),prm_ex("ads_datacmps","VarValueForm",sprintf("%.5e opt{ %.5e to %.5e }", Lk, 0.1*Lk, 10*Lk))),prm_ex("ads_datacmps","VarFormStdForm",
+	    prm_ex("ads_datacmps","VarNameForm","Cox1"),prm_ex("ads_datacmps","VarValueForm",sprintf("%.5e opt{ %.5e to %.5e }", Cox, 0.1*Cox, 10*Cox))),prm_ex("ads_datacmps","VarFormStdForm",
+	    prm_ex("ads_datacmps","VarNameForm","Cox2"),prm_ex("ads_datacmps","VarValueForm",sprintf("%.5e opt{ %.5e to %.5e }", Cox, 0.1*Cox, 10*Cox))),prm_ex("ads_datacmps","VarFormStdForm",
+	    prm_ex("ads_datacmps","VarNameForm","Csub1"),prm_ex("ads_datacmps","VarValueForm",sprintf("%.5e opt{ %.5e to %.5e }", Csub, 0.1*Csub, Csub_max))),prm_ex("ads_datacmps","VarFormStdForm",
+	    prm_ex("ads_datacmps","VarNameForm","Csub2"),prm_ex("ads_datacmps","VarValueForm",sprintf("%.5e opt{ %.5e to %.5e }", Csub, 0.1*Csub, Csub_max))),prm_ex("ads_datacmps","VarFormStdForm",
+	    prm_ex("ads_datacmps","VarNameForm","Rsub1"),prm_ex("ads_datacmps","VarValueForm",sprintf("%.5e opt{ %.5e to %.5e }", Rsub, 0.1*Rsub, 5*Rsub))),prm_ex("ads_datacmps","VarFormStdForm",
+	    prm_ex("ads_datacmps","VarNameForm","Rsub2"),prm_ex("ads_datacmps","VarValueForm",sprintf("%.5e opt{ %.5e to %.5e }", Rsub, 0.1*Rsub, 5*Rsub))),prm_ex("ads_datacmps","VarFormStdForm",
+	    prm_ex("ads_datacmps","VarNameForm","k"),prm_ex("ads_datacmps","VarValueForm","0.16 opt{ 0.05 to 0.4 }")))));
+
+
+      success = TRUE;      
+    } else {
+      // only for inductors with center tap
+      decl Lhalf = val(Muehlhaus_read_string("/inductor_toolkit/startvalue_Lhalf.csv"));
+      decl kL = val(Muehlhaus_read_string("/inductor_toolkit/startvalue_kL.csv"));
+
+      de_set_item_parameters(itemInfo0SP, list(list(prm_ex("ads_datacmps","VarFormStdForm",
+	    prm_ex("ads_datacmps","VarNameForm","Lhalf"),prm_ex("ads_datacmps","VarValueForm",sprintf("%.5e opt{ %.5e to %.5e }", Lhalf, 0.5*Lhalf, 2*Lhalf))),prm_ex("ads_datacmps","VarFormStdForm",
+	    prm_ex("ads_datacmps","VarNameForm","kL"),prm_ex("ads_datacmps","VarValueForm",sprintf("%.5e ", kL))),prm_ex("ads_datacmps","VarFormStdForm",
+	    prm_ex("ads_datacmps","VarNameForm","Rs"),prm_ex("ads_datacmps","VarValueForm",sprintf("%.5e opt{ %.5e to %.5e }", Rs, 0.2*Rs, 5*Rs))),prm_ex("ads_datacmps","VarFormStdForm",
+	    prm_ex("ads_datacmps","VarNameForm","Cp"),prm_ex("ads_datacmps","VarValueForm",sprintf("%.5e opt{ %.5e to %.5e }", Cp/2, 0, 10*Cp))),prm_ex("ads_datacmps","VarFormStdForm",
+	    prm_ex("ads_datacmps","VarNameForm","Cp2"),prm_ex("ads_datacmps","VarValueForm",sprintf("%.5e opt{ %.5e to %.5e }", Cp/2, 0, 10*Cp))),prm_ex("ads_datacmps","VarFormStdForm",
+	    prm_ex("ads_datacmps","VarNameForm","Rk"),prm_ex("ads_datacmps","VarValueForm",sprintf("%.5e opt{ %.5e to %.5e }", Rk, 0.1*Rs, 50*Rk))),prm_ex("ads_datacmps","VarFormStdForm",
+	    prm_ex("ads_datacmps","VarNameForm","Lk"),prm_ex("ads_datacmps","VarValueForm",sprintf("%.5e opt{ %.5e to %.5e }", Lk, 0.1*Lk, 10*Lk))),prm_ex("ads_datacmps","VarFormStdForm",
+	    prm_ex("ads_datacmps","VarNameForm","Cox1"),prm_ex("ads_datacmps","VarValueForm",sprintf("%.5e opt{ %.5e to %.5e }", 0.8*Cox, 0.1*Cox, 10*Cox))),prm_ex("ads_datacmps","VarFormStdForm",
+	    prm_ex("ads_datacmps","VarNameForm","Cox2"),prm_ex("ads_datacmps","VarValueForm",sprintf("%.5e opt{ %.5e to %.5e }", 0.8*Cox, 0.1*Cox, 10*Cox))),prm_ex("ads_datacmps","VarFormStdForm",
+	    prm_ex("ads_datacmps","VarNameForm","Cox3"),prm_ex("ads_datacmps","VarValueForm",sprintf("%.5e opt{ %.5e to %.5e }", 0.4*Cox, 0.1*Cox, 10*Cox))),prm_ex("ads_datacmps","VarFormStdForm",
+	    prm_ex("ads_datacmps","VarNameForm","Csub1"),prm_ex("ads_datacmps","VarValueForm",sprintf("%.5e opt{ %.5e to %.5e }", 0.8*Csub, 0.1*Csub, 5*Csub))),prm_ex("ads_datacmps","VarFormStdForm",
+	    prm_ex("ads_datacmps","VarNameForm","Csub2"),prm_ex("ads_datacmps","VarValueForm",sprintf("%.5e opt{ %.5e to %.5e }", 0.8*Csub, 0.1*Csub, 5*Csub))),prm_ex("ads_datacmps","VarFormStdForm",
+	    prm_ex("ads_datacmps","VarNameForm","Csub3"),prm_ex("ads_datacmps","VarValueForm",sprintf("%.5e opt{ %.5e to %.5e }", 0.4*Csub, 0.1*Csub, 5*Csub))),prm_ex("ads_datacmps","VarFormStdForm",
+	    prm_ex("ads_datacmps","VarNameForm","Rsub1"),prm_ex("ads_datacmps","VarValueForm",sprintf("%.5e opt{ %.5e to %.5e }", Rsub, 0.1*Rsub, 5*Rsub))),prm_ex("ads_datacmps","VarFormStdForm",
+	    prm_ex("ads_datacmps","VarNameForm","Rsub2"),prm_ex("ads_datacmps","VarValueForm",sprintf("%.5e opt{ %.5e to %.5e }", Rsub, 0.1*Rsub, 5*Rsub))),prm_ex("ads_datacmps","VarFormStdForm",
+	    prm_ex("ads_datacmps","VarNameForm","Rsub3"),prm_ex("ads_datacmps","VarValueForm",sprintf("%.5e opt{ %.5e to %.5e }", Rsub, 0.1*Rsub, 5*Rsub))),prm_ex("ads_datacmps","VarFormStdForm",
+	    prm_ex("ads_datacmps","VarNameForm","k"),prm_ex("ads_datacmps","VarValueForm","0.16 opt{ 0.05 to 0.4 }")))));
+
+      success = TRUE;      
+    }
+
+  } else {
+
+    // models for inductor with PGS are not complete yet 
+
+    if (!withCentertap) {
+      de_set_item_parameters(itemInfo0SP, list(list(prm_ex("ads_datacmps","VarFormStdForm",
+	    prm_ex("ads_datacmps","VarNameForm","Ls"),prm_ex("ads_datacmps","VarValueForm",sprintf("%.5e opt{ %.5e to %.5e }", Ls, 0.5*Ls, 2*Ls))),prm_ex("ads_datacmps","VarFormStdForm",
+	    prm_ex("ads_datacmps","VarNameForm","Rs"),prm_ex("ads_datacmps","VarValueForm",sprintf("%.5e opt{ %.5e to %.5e }", Rs, 0.2*Rs, 5*Rs))),prm_ex("ads_datacmps","VarFormStdForm",
+	    prm_ex("ads_datacmps","VarNameForm","Cp"),prm_ex("ads_datacmps","VarValueForm",sprintf("%.5e opt{ %.5e to %.5e }", Cp/2, 0, 10*Cp))),prm_ex("ads_datacmps","VarFormStdForm",
+	    prm_ex("ads_datacmps","VarNameForm","Cp2"),prm_ex("ads_datacmps","VarValueForm",sprintf("%.5e opt{ %.5e to %.5e }", Cp/2, 0, 10*Cp))),prm_ex("ads_datacmps","VarFormStdForm",
+	    prm_ex("ads_datacmps","VarNameForm","Rk"),prm_ex("ads_datacmps","VarValueForm",sprintf("%.5e opt{ %.5e to %.5e }", Rk, 0.1*Rs, 50*Rk))),prm_ex("ads_datacmps","VarFormStdForm",
+	    prm_ex("ads_datacmps","VarNameForm","Lk"),prm_ex("ads_datacmps","VarValueForm",sprintf("%.5e opt{ %.5e to %.5e }", Lk, 0.1*Lk, 10*Lk))),prm_ex("ads_datacmps","VarFormStdForm",
+	    prm_ex("ads_datacmps","VarNameForm","Cox1"),prm_ex("ads_datacmps","VarValueForm",sprintf("%.5e opt{ %.5e to %.5e }", Cox, 0.1*Cox, 10*Cox))),prm_ex("ads_datacmps","VarFormStdForm",
+	    prm_ex("ads_datacmps","VarNameForm","Cox2"),prm_ex("ads_datacmps","VarValueForm",sprintf("%.5e opt{ %.5e to %.5e }", Cox, 0.1*Cox, 10*Cox))),prm_ex("ads_datacmps","VarFormStdForm",
+	    prm_ex("ads_datacmps","VarNameForm","Csub1"),prm_ex("ads_datacmps","VarValueForm","0")),prm_ex("ads_datacmps","VarFormStdForm",
+	    prm_ex("ads_datacmps","VarNameForm","Csub2"),prm_ex("ads_datacmps","VarValueForm","0")),prm_ex("ads_datacmps","VarFormStdForm",
+	    prm_ex("ads_datacmps","VarNameForm","Rsub1"),prm_ex("ads_datacmps","VarValueForm","0 opt{ 0 to 50}")),prm_ex("ads_datacmps","VarFormStdForm",
+	    prm_ex("ads_datacmps","VarNameForm","Rsub2"),prm_ex("ads_datacmps","VarValueForm","0 opt{ 0 to 50}")),prm_ex("ads_datacmps","VarFormStdForm",
+	    prm_ex("ads_datacmps","VarNameForm","k"),prm_ex("ads_datacmps","VarValueForm","0.16 opt{ 0.05 to 0.8 }")))));
+
+
+      success = TRUE;      
+    } else {
+      // only for inductors with center tap
+      decl Lhalf = val(Muehlhaus_read_string("/inductor_toolkit/startvalue_Lhalf.csv"));
+      decl kL = val(Muehlhaus_read_string("/inductor_toolkit/startvalue_kL.csv"));
+
+      de_set_item_parameters(itemInfo0SP, list(list(prm_ex("ads_datacmps","VarFormStdForm",
+	    prm_ex("ads_datacmps","VarNameForm","Lhalf"),prm_ex("ads_datacmps","VarValueForm",sprintf("%.5e opt{ %.5e to %.5e }", Lhalf, 0.5*Lhalf, 2*Lhalf))),prm_ex("ads_datacmps","VarFormStdForm",
+	    prm_ex("ads_datacmps","VarNameForm","kL"),prm_ex("ads_datacmps","VarValueForm",sprintf("%.5e ", kL))),prm_ex("ads_datacmps","VarFormStdForm",
+	    prm_ex("ads_datacmps","VarNameForm","Rs"),prm_ex("ads_datacmps","VarValueForm",sprintf("%.5e opt{ %.5e to %.5e }", Rs, 0.2*Rs, 5*Rs))),prm_ex("ads_datacmps","VarFormStdForm",
+	    prm_ex("ads_datacmps","VarNameForm","Cp"),prm_ex("ads_datacmps","VarValueForm",sprintf("%.5e opt{ %.5e to %.5e }", Cp/2, 0, 10*Cp))),prm_ex("ads_datacmps","VarFormStdForm",
+	    prm_ex("ads_datacmps","VarNameForm","Cp2"),prm_ex("ads_datacmps","VarValueForm",sprintf("%.5e opt{ %.5e to %.5e }", Cp/2, 0, 10*Cp))),prm_ex("ads_datacmps","VarFormStdForm",
+	    prm_ex("ads_datacmps","VarNameForm","Rk"),prm_ex("ads_datacmps","VarValueForm",sprintf("%.5e opt{ %.5e to %.5e }", Rk, 0.1*Rs, 50*Rk))),prm_ex("ads_datacmps","VarFormStdForm",
+	    prm_ex("ads_datacmps","VarNameForm","Lk"),prm_ex("ads_datacmps","VarValueForm",sprintf("%.5e opt{ %.5e to %.5e }", Lk, 0.1*Lk, 10*Lk))),prm_ex("ads_datacmps","VarFormStdForm",
+	    prm_ex("ads_datacmps","VarNameForm","Cox1"),prm_ex("ads_datacmps","VarValueForm",sprintf("%.5e opt{ %.5e to %.5e }", 0.8*Cox, 0.1*Cox, 10*Cox))),prm_ex("ads_datacmps","VarFormStdForm",
+	    prm_ex("ads_datacmps","VarNameForm","Cox2"),prm_ex("ads_datacmps","VarValueForm",sprintf("%.5e opt{ %.5e to %.5e }", 0.8*Cox, 0.1*Cox, 10*Cox))),prm_ex("ads_datacmps","VarFormStdForm",
+	    prm_ex("ads_datacmps","VarNameForm","Cox3"),prm_ex("ads_datacmps","VarValueForm",sprintf("%.5e opt{ %.5e to %.5e }", 0.4*Cox, 0.1*Cox, 10*Cox))),prm_ex("ads_datacmps","VarFormStdForm",
+	    prm_ex("ads_datacmps","VarNameForm","Csub1"),prm_ex("ads_datacmps","VarValueForm","0")),prm_ex("ads_datacmps","VarFormStdForm",
+	    prm_ex("ads_datacmps","VarNameForm","Csub2"),prm_ex("ads_datacmps","VarValueForm","0")),prm_ex("ads_datacmps","VarFormStdForm",
+	    prm_ex("ads_datacmps","VarNameForm","Csub3"),prm_ex("ads_datacmps","VarValueForm","0")),prm_ex("ads_datacmps","VarFormStdForm",
+	    prm_ex("ads_datacmps","VarNameForm","Rsub1"),prm_ex("ads_datacmps","VarValueForm","0 opt{ 0 to 50}")),prm_ex("ads_datacmps","VarFormStdForm",
+	    prm_ex("ads_datacmps","VarNameForm","Rsub2"),prm_ex("ads_datacmps","VarValueForm","0 opt{ 0 to 50}")),prm_ex("ads_datacmps","VarFormStdForm",
+	    prm_ex("ads_datacmps","VarNameForm","Rsub3"),prm_ex("ads_datacmps","VarValueForm","0 opt{ 0 to 50}")),prm_ex("ads_datacmps","VarFormStdForm",
+	    prm_ex("ads_datacmps","VarNameForm","k"),prm_ex("ads_datacmps","VarValueForm","0.16 opt{ 0.05 to 0.8 }")))));
+
+      success = TRUE;      
+    }
+
+  }
+
+
+  de_end_edit_item(itemInfo0SP);
+  de_end_edit_item(itemInfo0SP);
+  itemInfo0SP = de_free_item(itemInfo0SP);
+
+
+  // set data for fitting/optimization
+  decl itemInfo0SP = de_edit_item("SNP1");
+  de_set_item_id(itemInfo0SP, "SNP1");
+  de_set_item_parameters(itemInfo0SP,
+	list(prm_ex("ads_datacmps","dfiles",thedataset),
+	prm_ex("ads_datacmps","Type2"),
+	prm_ex("ads_datacmps","StringAndReference",""),
+	prm_ex("ads_datacmps","Mode0"),
+	prm_ex("ads_datacmps","ID0"),
+	prm_ex("ads_datacmps","EMode2"),
+	prm_ex("ads_datacmps","StdForm","27.0"),
+	prm_ex("ads_datacmps","y_n0"),
+	prm_ex("ads_datacmps","StdForm",""),
+	prm_ex("ads_datacmps","StdForm",""),
+	prm_ex("ads_datacmps","StdForm",""),
+	prm_ex("ads_datacmps","StdForm",""),
+	prm_ex("ads_datacmps","StdForm",""),
+	prm_ex("ads_datacmps","StdForm",""),
+	prm_ex("ads_datacmps","StdForm",""),
+	prm_ex("ads_datacmps","StdForm",""),
+	prm_ex("ads_datacmps","Auto","")));
+  de_end_edit_item(itemInfo0SP);
+  de_end_edit_item(itemInfo0SP);
+  itemInfo0SP = de_free_item(itemInfo0SP);
+
+  // set frequency range for optimization
+  decl itemInfo0SP = de_edit_item("FreqVar");
+  de_set_item_id(itemInfo0SP, "FreqVar");
+  de_set_item_parameters(itemInfo0SP, list(list(prm_ex("ads_datacmps","VarFormStdForm",
+	prm_ex("ads_datacmps","VarNameForm","fmax"),prm_ex("ads_datacmps","VarValueForm",sprintf("%.5e",fmax_fit))),
+	prm_ex("ads_datacmps","VarFormStdForm",prm_ex("ads_datacmps","VarNameForm","fQmax"),prm_ex("ads_datacmps","VarValueForm",sprintf("%.5e",f_Qmax))))));
+  de_end_edit_item(itemInfo0SP);
+  de_end_edit_item(itemInfo0SP);
+  itemInfo0SP = de_free_item(itemInfo0SP);
+
+  // set MeasEqn for file name of fitted data, so that we find that in the dataset
+  decl itemInfo0SP = de_edit_item("MeasDataFile");
+  de_set_item_id(itemInfo0SP, "MeasDataFile");
+  decl Modelname = getModelName();
+  de_set_item_parameters(itemInfo0SP, list(list(prm_ex("ads_simulation","SingleTextLine",strcat("Datafile=\"",thedata ,"\"")),prm_ex("ads_simulation","SingleTextLine",strcat("Modelname=\"", Modelname, "\"")))));
+  de_end_edit_item(itemInfo0SP);
+  de_end_edit_item(itemInfo0SP);
+  itemInfo0SP = de_free_item(itemInfo0SP);
+  
+  if (success) return de_get_current_design_context(); else return NULL;
+  
+}
+
+

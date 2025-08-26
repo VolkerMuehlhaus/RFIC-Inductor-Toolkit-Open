@@ -1,0 +1,6 @@
+create_item("emModel_interleaved_octagon_stacked","emModel_interleaved_octagon_stacked","X",16,-1,NULL,"Component Parameters",NULL,"%43?global %;%d:%t %# %44?0%:%31?%C%:_net%c%;%;%e %b%r%8?%29?%:%30?%p %:%k%?[%1i]%;=%p %;%;%;%e%e","emModel_interleaved_octagon_stacked","%t%b%r%38?%:\n%30?%s%:%k%?[%1i]%;=%s%;%;%e%e%;","",0,NULL,0,
+create_parm("w","width",66560,"StdFormSet",5,prm("StdForm","5 um")),
+create_parm("s","spacing",66560,"StdFormSet",5,prm("StdForm","2 um")),
+create_parm("dout","outer diameter",66560,"StdFormSet",5,prm("StdForm","200 um")),
+create_parm("N1","Number of turns primary",66560,"StdFormSet",-1,prm("StdForm","2")),
+create_parm("N2","Number of turns secondary",66560,"StdFormSet",-1,prm("StdForm","2")));

@@ -1,0 +1,4531 @@
+
+// Muehlhaus Inductor PDK
+
+
+decl shape_octa = 0;
+decl shape_square = 1;
+
+
+// Global variable that control the layout style are located in technology.ael:
+// underpass_width_factor: underpass width is a multiple of w, but only up to ...
+// max_underpass_width
+// extra_layer_extension: distance between inductor and the bounding box drawn on extra layers
+
+
+
+
+defun mi_ind_square_old (N,D,w,s,L)
+{
+
+
+	// get context of instance referencing this artwork
+	decl designContext = de_get_current_design_context();
+	// fputs(stderr, strcat("designContext = ", identify_value(designContext)));
+
+	// get mks to user units conversion factor
+	decl mks2uu = db_get_mks_to_uu_factor(designContext);
+	// fputs(stderr, strcat("Simulator units to user units conversion factor = ",identify_value(mks2uu)));
+
+	// convert to user units
+	D = gridsnap(D * mks2uu);
+	w = gridsnap(w * mks2uu);
+	s = gridsnap(s * mks2uu);
+	
+
+
+	// for small width, the inner connection is enlarged by a triangle
+	decl w_for_extra_triangle = 10; // this value is 10 for TowerJazz SBC18H
+	
+	decl fullturns = int(N);
+	decl quarterturns = round(4*(N - fullturns));
+
+	// get layerID, db_layerID (layernumber [,purpose])
+	decl spiral_layerID = db_layerid(spiral_layer);
+	decl crossover_layerID = db_layerid(crossover_layer);
+	decl via_layer_spiral_crossoverID = db_layerid(via_layer_spiral_crossover);
+
+
+	// reference location (0,0) is at inductor center
+	decl x0 = gridsnap(D/2);
+	decl y0 = gridsnap(D/2);
+	decl nfull = 0;
+	decl x1,y1;
+	
+	// inner diameter assuming full turns
+	decl Di = gridsnap(D - 2*fullturns*w - 2*(fullturns-1)*s);
+	
+	// underpass width (value is 3*w for TowerJazz, so that can be controlled from technology preferences)
+	decl w_underpass = underpass_width_factor*w;  
+	// make sure underpass is not wider than maximum metal width
+	if (w_underpass > max_underpass_width) {
+	  w_underpass=max_underpass_width;
+	}  	
+
+	
+	// depending on the fraction turns, the inner turn position can change
+	decl y_offset = 0;
+	if (quarterturns > 0.01) y_offset = w+s;  
+
+	decl x_offset = 0;
+	if (quarterturns > 1.01) x_offset = -w-s; 
+
+	decl y2_offset = 0;
+	if (quarterturns > 2.01) y2_offset = -w-s;
+	
+
+	// based on settings in preferences.ael, this will draw a metal frame around the inductor
+	if (draw_groundframe) mi_draw_frame(designContext, x0, y0, D);
+
+
+	// underpass
+	
+	// pad and via and pin outer side
+	decl feed_spacing = s;
+	
+	
+	db_add_rectangle(designContext, spiral_layerID, x0-Di/2+s, y0-D/2-feed_spacing, x0-Di/2+s+w_underpass, y0-D/2-feed_spacing-2*w);
+	mi_add_via(designContext, via_layer_spiral_crossoverID, x0-Di/2+s, y0-D/2-feed_spacing, x0-Di/2+s+w_underpass, y0-D/2-feed_spacing-2*w);
+	db_create_pin(designContext, x0-Di/2+s + w_underpass/2,   y0-D/2-feed_spacing-2*w, -90, spiral_layerID, 2, "2");
+
+	// create area pin with pin purpose
+	muehlhaus_create_pin_pinpurpose (designContext, spiral_layer, x0-Di/2+s,   y0-D/2-feed_spacing-2*w, x0-Di/2+s + w_underpass,   y0-D/2-feed_spacing-w, w/4, "LB"); 
+
+	// connecting triangle inner side, but only for lines smaller than 10µm
+	// this also affects the underpass, so we have to define things here
+	// triangle default size is 2*w, but must not be larger than w_for_extra_triangle
+	decl triang_size = 2*w;
+	if (triang_size>w_for_extra_triangle) triang_size=w_for_extra_triangle;
+
+
+	// pad and via inner side
+	if (w<w_for_extra_triangle) 
+	{  
+	  // larger area for via connection to underpass
+	  db_add_rectangle(designContext, spiral_layerID, x0-Di/2+s, y0-Di/2-w+triang_size+y_offset, x0-Di/2+s+w_underpass, y0-Di/2-w+y_offset);
+	  mi_add_via(designContext, via_layer_spiral_crossoverID, x0-Di/2+s, y0-Di/2-w+triang_size+y_offset, x0-Di/2+s+w_underpass, y0-Di/2-w+y_offset);
+	  db_add_rectangle(designContext, crossover_layerID, x0-Di/2+s, y0-Di/2-w+triang_size+y_offset, x0-Di/2+s+w_underpass, y0-D/2-feed_spacing-2*w);
+
+	} else {
+	  db_add_rectangle(designContext, spiral_layerID, x0-Di/2+s, y0-Di/2+y_offset, x0-Di/2+s+w_underpass, y0-Di/2-w+y_offset);
+	  mi_add_via(designContext, via_layer_spiral_crossoverID, x0-Di/2+s, y0-Di/2+y_offset, x0-Di/2+s+w_underpass, y0-Di/2-w+y_offset);
+	  db_add_rectangle(designContext, crossover_layerID, x0-Di/2+s, y0-Di/2+y_offset, x0-Di/2+s+w_underpass, y0-D/2-feed_spacing-2*w);
+	}
+	
+	
+	// connecting triangle inner side
+	// but only for lines smaller than 10µm
+	if (w<w_for_extra_triangle) 
+	{
+	  db_add_polygon(designContext);
+	  x1 = gridsnap(x0-Di/2+s+w_underpass);
+	  y1 = gridsnap(y0-Di/2-w+triang_size+y_offset);
+	  db_add_point(designContext, x1, y1);
+	  x1 = x1 + gridsnap(triang_size);
+	  y1 = y1 - gridsnap(triang_size);
+	  db_add_point(designContext, x1, y1);
+	  x1 = x1 - gridsnap(triang_size);
+	  db_add_point(designContext, x1, y1);
+	  y1 = y1 + gridsnap(triang_size);
+	  db_add_point(designContext, x1, y1);
+	  decl dbShape = db_end(designContext, spiral_layerID);
+	}
+
+	
+	// spiral from inner to outer, TowerJazz style
+	
+	decl x1 = gridsnap(x0 - Di/2 + s);  
+	decl y1 = gridsnap(y0 - Di/2 - w/2 + y_offset);
+	decl x2 = gridsnap(x0 + Di/2 + w/2 + x_offset); 
+	decl y2 = gridsnap(y0 + Di/2 + w/2 + y2_offset);
+	
+		
+	for ( nfull=1; nfull<=fullturns; nfull++ )
+	{
+		de_set_path_corner(PREF_SQUARE_PATH);
+		de_set_path_width(w);
+
+		// one full turn each
+		db_add_path(designContext);
+		db_add_point(designContext, x1, y1); 	// 1
+		db_add_point(designContext, x2, y1);	// 2
+		db_add_point(designContext, x2, y2);	// 3
+		db_add_point(designContext, x1-w/2-s, y2);	// 4
+		
+		if (nfull==N) {
+		  // shorter segment if this is the last, full turn
+		  db_add_point(designContext, x1-w/2-s, y1-w/2); // 5 
+		} else {
+		  // longer segment where additional full or fractional turns are attached
+		  db_add_point(designContext, x1-w/2-s, y1-w-s-w/2); // 5 
+		}
+		
+		decl dbShape = db_end(designContext, spiral_layerID);
+					
+		x1 = gridsnap(x1 - w - s);
+		x2 = gridsnap(x2 + w + s);
+		y1 = gridsnap(y1 - w - s);
+		y2 = gridsnap(y2 + w + s);
+		
+	}
+
+	// handle the fractional turns
+	// fputs(stderr, strcat("quarterturns = ", identify_value(quarterturns)));	
+	
+	if (quarterturns == 0)
+	{
+	  db_create_pin(designContext, x0-D/2+w/2,   y0-D/2, -90, spiral_layerID, 1, "1");
+	  
+	  // create area pin with pin purpose
+	  muehlhaus_create_pin_pinpurpose (designContext, spiral_layer, x0-D/2, y0-D/2, x0-D/2+w, y0-D/2+w, w/4, "LA"); 
+
+	}
+	
+	else if (quarterturns == 1)
+	{
+	  // one quarter turn
+
+	  db_add_path(designContext);
+	  db_add_point(designContext, x1, y1); 	    	// 1
+	  db_add_point(designContext, x0+D/2, y1);	// 2
+	  decl dbShape = db_end(designContext, spiral_layerID);
+
+	  db_create_pin(designContext, x0+D/2,   y1, 0, spiral_layerID, 1, "1");
+
+	  // create area pin with pin purpose
+	  muehlhaus_create_pin_pinpurpose (designContext, spiral_layer, x0+D/2-w,   y1-w/2, x0+D/2,   y1+w/2, w/4, "LA"); 
+
+	}
+
+	else if (quarterturns == 2)
+	{
+	  // two quarter turns
+	  db_add_path(designContext);
+	  db_add_point(designContext, x1, y1); 	// 1
+	  db_add_point(designContext, x2, y1);	// 2
+	  db_add_point(designContext, x2, y0+D/2); // 3
+	  decl dbShape = db_end(designContext, spiral_layerID);
+
+	  db_create_pin(designContext, x2, y0+D/2, 90, spiral_layerID, 1, "1");
+
+	  // create area pin with pin purpose
+	  muehlhaus_create_pin_pinpurpose (designContext, spiral_layer, x2-w/2, y0+D/2, x2+w/2, y0+D/2-w, w/4, "LA"); 
+
+	}
+	else
+	{
+	  // three quarter turns
+	  db_add_path(designContext);
+	  db_add_point(designContext, x1, y1); 	// 1
+	  db_add_point(designContext, x2, y1);	// 2
+	  db_add_point(designContext, x2, y2);	// 3
+	  db_add_point(designContext, x0-D/2, y2); // 4
+	  decl dbShape = db_end(designContext, spiral_layerID);
+
+	  db_create_pin(designContext, x0-D/2, y2, 180, spiral_layerID, 1, "1");
+
+	  // create area pin with pin purpose
+	  muehlhaus_create_pin_pinpurpose (designContext, spiral_layer, x0-D/2+w,   y2-w/2, x0-D/2,   y2+w/2, w/4, "LA"); 
+
+	}
+	
+
+
+	// merge everything
+	merge_all();
+	
+	
+
+	// Other layers that must be drawn under inductor
+	// These are in a list: other_inductor_layers_list
+
+
+	if (is_list(extra_inductor_layers_list))
+	{
+	  
+	  decl num_extra_layer = listlen(extra_inductor_layers_list);
+	  decl extra_layerNo;
+	  decl extra_string;
+	  decl extra_layerPurpose;
+	  decl extra_layerID;
+	  decl i;
+	  for ( i=0; i<num_extra_layer; i++ )
+	  {
+
+	    extra_string = nth(i, extra_inductor_layers_list);
+	    extra_layerNo = getLayerNum_NumPurposeString(extra_string);
+	    extra_layerPurpose = getPurposeNum_NumPurposeString (extra_string);
+	    extra_layerID = db_layerid(extra_layerNo, extra_layerPurpose);
+	    
+	    db_add_rectangle(designContext, extra_layerID, x0-D/2-extra_layer_extension, y0-D/2-extra_layer_extension, x0+D/2+extra_layer_extension, y0+D/2+extra_layer_extension);
+	    
+	  }
+	}
+  
+}
+
+
+
+
+defun mi_ind_square (N,D,w,s,L)
+{
+
+	// get context of instance referencing this artwork
+	decl designContext = de_get_current_design_context();
+
+	// get mks to user units conversion factor
+	decl mks2uu = db_get_mks_to_uu_factor(designContext);
+
+	// convert to user units
+	D = gridsnap(D * mks2uu);
+	w = gridsnap(w * mks2uu);
+	s = gridsnap(s * mks2uu);
+
+
+	decl fullturns = int(N);
+	decl quarterturns = round(4*(N - fullturns));
+
+	// make sure we don't create a single via 
+	decl size_for_two_vias =  2 * mi_get_via_size(via_layer_spiral_crossover) + mi_get_via_gap(via_layer_spiral_crossover) + 2 * mi_get_via_margin(via_layer_spiral_crossover);
+	decl overlap_size = w;
+	if (w < size_for_two_vias) overlap_size = (1.1*size_for_two_vias);
+
+
+	// underpass width factor from technology file
+	decl w_underpass = underpass_width_factor*w;  
+	
+	if (w_underpass < overlap_size) {
+	  // make underpass wide enough for 2 vias 
+	  w_underpass = overlap_size;
+	}  
+	
+	if (w_underpass > max_underpass_width) {
+	  // make sure underpass is not wider than maximum metal width
+	  w_underpass=max_underpass_width;
+	}  	
+	
+
+	// get layerID, db_layerID (layernumber [,purpose])
+	decl spiral_layerID = db_layerid(spiral_layer);
+	decl crossover_layerID = db_layerid(crossover_layer);
+	decl via_layer_spiral_crossoverID = db_layerid(via_layer_spiral_crossover);
+
+
+	// reference location (0,0) is at inductor center
+	decl x0 = gridsnap(D/2);
+	decl y0 = gridsnap(D/2);
+	
+
+	// spiral from outer to inner, clockwise
+	decl x1 = gridsnap (x0 - D/2 + w/2); // trace center left
+	decl y1 = gridsnap (y0 - D/2 + w/2); // trace center bottom
+	decl x2 = gridsnap (x0 + D/2 - w/2); // trace center right
+	decl y2 = gridsnap (y0 + D/2 - w/2); // trace center top
+	decl y3; 
+
+	// based on settings in preferences.ael, this will draw a metal frame around the inductor
+	if (draw_groundframe) mi_draw_frame(designContext,x0, y0, D);
+
+	// Pin at bottom center
+	decl feed_extension = 1.5*w;
+	if (groundframe_extend_feedline && draw_groundframe) {
+	  feed_extension = D/2*(groundframe_size_factor-1) + groundframe_oversize;	
+	  if (groundframe_extend_over_frame) feed_extension = feed_extension  + groundframe_width;
+	}  
+
+	db_create_pin(designContext, x0, y0-D/2-feed_extension, -90, spiral_layerID, 1, "1");
+
+
+	// beginn drawing at outer feed (bottom center)
+	de_set_path_corner(PREF_SQUARE_PATH);
+	de_set_path_width(w);
+
+	db_add_path(designContext);
+	db_add_point(designContext, x0, y1-feed_extension-w/2);	// start
+
+
+	// one full turn each
+	decl nfull;
+	for ( nfull=1; nfull<=fullturns; nfull++ )
+	{
+
+		db_add_point(designContext, x0, y1);	// bottom center
+		db_add_point(designContext, x1, y1);	// lower left
+		db_add_point(designContext, x1, y2);	// upper left
+		db_add_point(designContext, x2, y2);	// upper right 
+		
+		y3 = gridsnap (y1 + w + s);	
+		db_add_point(designContext, x2, y3);	// lower right 
+		db_add_point(designContext, x0, y3);	// end of one turn 
+					
+		x1 = gridsnap(x1 + w + s);
+		x2 = gridsnap(x2 - w - s);
+		y1 = gridsnap(y1 + w + s);
+		y2 = gridsnap(y2 - w - s);
+		
+		// close shape
+		decl dbShape = db_end(designContext, spiral_layerID);
+	
+	}
+
+
+	if (quarterturns == 0)
+	{
+
+	  // inner spiral extension
+	  x1 = gridsnap(x0 - s - 1.5 * w);
+	  x2 = x0;
+	  y1 = gridsnap(y3+w/2);
+	  y2 = gridsnap(y3-w/2);
+	  db_add_rectangle(designContext, spiral_layerID, x1,y1,x2,y2);
+	  
+	  // inner via
+	  x2 = gridsnap(x1+w_underpass);
+	  mi_add_via(designContext, via_layer_spiral_crossoverID, x1,y1,x2,y2);
+
+	  // outer via and metal
+	  x2 = gridsnap(x1+w);
+	  y1 = gridsnap(y0 - D/2 - 0.5*w);
+	  y2 = gridsnap (y0 - D/2 - feed_extension); 
+	  mi_add_via(designContext, via_layer_spiral_crossoverID, x1,y1,x2,y2);
+	  db_add_rectangle(designContext, spiral_layerID, x1,y1,x2,y2);
+	  db_add_rectangle(designContext, crossover_layerID, x1,y1,x2,y2);
+	  
+	  // tapered underpath section
+	  db_add_polygon(designContext);
+	  db_add_point(designContext, x1, y1);
+	  db_add_point(designContext, x2, y1);
+	  x2 = gridsnap(x1+w_underpass);
+	  y1 = gridsnap(y3 + w/2);
+	  y2 = gridsnap (y0 - D/2 - 1.5*w + w_underpass); 
+	  db_add_point(designContext, x2, y2);
+	  db_add_point(designContext, x1, y2);
+	  decl dbShape = db_end(designContext, crossover_layerID);
+
+
+	  // crossover wide section
+	  db_add_rectangle(designContext, crossover_layerID, x1,y1,x2,y2);
+
+
+	  // Pin at crossover
+	  db_create_pin(designContext, x1+w/2, y0-D/2-feed_extension, -90, spiral_layerID, 2, "2");
+ 
+	}
+	
+	else if (quarterturns == 1)
+	{
+
+	  // inner spiral extension
+	  db_add_path(designContext);
+	  db_add_point(designContext, x0, y1);	// bottom center
+	  db_add_point(designContext, x1, y1);	// lower left
+	  y2 = gridsnap (y0 + w_underpass/2 ); 
+	  db_add_point(designContext, x1, y2);	// center left
+	  decl dbShape = db_end(designContext, spiral_layerID);
+
+	  // crossover
+	  x1 = gridsnap(x1 + w/2);
+	  x2 = gridsnap(x0 - D/2 - feed_extension);
+	  y1 = gridsnap(y2 - w_underpass);
+	  db_add_rectangle(designContext, crossover_layerID, x1,y1,x2,y2);
+
+
+	  // inner via
+	  x2 = gridsnap(x1-w);
+	  mi_add_via(designContext, via_layer_spiral_crossoverID, x1,y1,x2,y2);
+
+	  // outer via and metal
+	  x2 = gridsnap(x0 - D/2 - feed_extension);
+	  x1 = gridsnap(x2+w);
+	  mi_add_via(designContext, via_layer_spiral_crossoverID, x1,y1,x2,y2);
+	  db_add_rectangle(designContext, spiral_layerID, x1,y1,x2,y2);
+
+	  // Pin at crossover
+	  db_create_pin(designContext, x2, y0, 180, spiral_layerID, 2, "2");
+	  
+
+	}
+
+	else if (quarterturns == 2)
+	{
+
+	  // inner spiral extension
+	  db_add_path(designContext);
+	  db_add_point(designContext, x0, y1);	// bottom center
+	  db_add_point(designContext, x1, y1);	// lower left
+	  db_add_point(designContext, x1, y2);	// top left
+	  x1 = gridsnap(x0 + w_underpass/2);
+	  db_add_point(designContext, x1, y2);	// top center
+	  decl dbShape = db_end(designContext, spiral_layerID);
+
+	  // crossover
+	  x2 = gridsnap(x1 - w_underpass);
+	  y1 = gridsnap(x0 + D/2 + feed_extension);
+	  y2 = gridsnap(y2 - w/2);
+	  db_add_rectangle(designContext, crossover_layerID, x1,y1,x2,y2);
+
+	  // inner via
+	  y1 = gridsnap(y2+w);
+	  mi_add_via(designContext, via_layer_spiral_crossoverID, x1,y1,x2,y2);
+	
+	  // outer via and metal
+	  y1 = gridsnap(x0 + D/2 + feed_extension);
+	  y2 = gridsnap(y1 - w);
+	  mi_add_via(designContext, via_layer_spiral_crossoverID, x1,y1,x2,y2);
+	  db_add_rectangle(designContext, spiral_layerID, x1,y1,x2,y2);
+	  
+	  // Pin at crossover
+	  db_create_pin(designContext, x0, y1, 90, spiral_layerID, 2, "2");
+
+
+	}
+	else
+	{
+
+	  // inner spiral extension
+	  db_add_path(designContext);
+	  db_add_point(designContext, x0, y1);	// bottom center
+	  db_add_point(designContext, x1, y1);	// lower left
+	  db_add_point(designContext, x1, y2);	// top left
+	  db_add_point(designContext, x2, y2);	// top right
+	  y2 = gridsnap (y0 - w_underpass/2 ); 
+	  db_add_point(designContext, x2, y2);	// top right
+	  decl dbShape = db_end(designContext, spiral_layerID);
+
+	  // crossover
+	  x1 = gridsnap(x2 - w/2);
+	  x2 = gridsnap(x0 + D/2 + feed_extension);
+	  y1 = gridsnap(y2 + w_underpass);
+	  db_add_rectangle(designContext, crossover_layerID, x1,y1,x2,y2);
+
+	  // inner via
+	  x2 = gridsnap(x1+w);
+	  mi_add_via(designContext, via_layer_spiral_crossoverID, x1,y1,x2,y2);
+
+	  // outer via and metal
+	  x1 = gridsnap(x0 +D/2 + feed_extension);
+	  x2 = gridsnap(x1 - w);
+	  mi_add_via(designContext, via_layer_spiral_crossoverID, x1,y1,x2,y2);
+	  db_add_rectangle(designContext, spiral_layerID, x1,y1,x2,y2);
+
+	  // Pin at crossover
+	  db_create_pin(designContext, x1, y0, 0, spiral_layerID, 2, "2");
+
+	}
+
+
+	// merge everything
+	merge_all();
+	
+	// extra layers under inductor
+	if (is_list(extra_inductor_layers_list))
+	{
+	  
+	  decl num_extra_layer = listlen(extra_inductor_layers_list);
+	  decl extra_layerNo;
+	  decl extra_string;
+	  decl extra_layerPurpose;
+	  decl extra_layerID;
+	  decl i;
+	  decl extension;
+	  
+	  if (extra_layer_extension > 1.5*w) {
+	     extension = extra_layer_extension;
+	  } else {
+	     extension = 1.5*w;
+	  }
+	  
+	  for ( i=0; i<num_extra_layer; i++ )
+	  {
+	    extra_string = nth(i, extra_inductor_layers_list);
+	    extra_layerNo = getLayerNum_NumPurposeString(extra_string);
+	    extra_layerPurpose = getPurposeNum_NumPurposeString (extra_string);
+	    extra_layerID = db_layerid(extra_layerNo, extra_layerPurpose);
+	    
+	    db_add_rectangle(designContext, extra_layerID, gridsnap(x0-D/2-extension), gridsnap(y0-D/2-extension), gridsnap(x0+D/2+extension), gridsnap(y0+D/2+extension));
+	    
+	  }
+	}
+
+
+	
+	// code for minimum inductor diameter must match the artwork drawing
+	// function: square_single_min_diameter(N,w,s)
+	// code location: ael/minimum_artwork.ael
+	
+}
+
+
+// ----------------- OCTAGON DIFF  ------------------
+
+
+
+defun mi_ind_diff_2port (N,D,w,s,L)
+{
+	// octa without center tap
+	// no ground shield, wshield = 0, not stacked
+	mi_ind_diff (shape_octa, N,D,w,s,0,L, FALSE, FALSE, FALSE);
+}
+
+defun mi_ind_diff_stacked_2port (N,D,w,s,L)
+{
+	// octa without center tap
+	// no ground shield, wshield = 0, stacked
+	mi_ind_diff (shape_octa, N,D,w,s,0,L, FALSE, FALSE, TRUE);
+}
+
+
+defun mi_ind_diff_pgs_2port (N,D,w,s,wshield,L)
+{
+	// octa without center tap, not stacked
+	mi_ind_diff (shape_octa, N,D,w,s,wshield, L, FALSE, TRUE, FALSE);
+}
+
+
+defun mi_ind_diff_3port (N,D,w,s,L)
+{
+	// octa with center tap
+	// no ground shield, wshield = 0, not stacked
+	mi_ind_diff (shape_octa, N,D,w,s,0, L, TRUE, FALSE, FALSE);
+}
+
+defun mi_ind_diff_stacked_3port (N,D,w,s,L)
+{
+	// octa with center tap
+	// no ground shield, wshield = 0, stacked
+	mi_ind_diff (shape_octa, N,D,w,s,0, L, TRUE, FALSE, TRUE);
+}
+
+
+defun mi_ind_diff_pgs_3port (N,D,w,s,wshield, L)
+{
+	// octa with center tap, not stacked
+	mi_ind_diff (shape_octa, N,D,w,s,wshield, L, TRUE, TRUE, FALSE);
+}
+
+defun mi_ind_diff_stacked_pgs_3port (N,D,w,s,wshield, L)
+{
+	// octa with center tap, not stacked
+	mi_ind_diff (shape_octa, N,D,w,s,wshield, L, TRUE, TRUE, TRUE);
+}
+
+
+
+// ----------------- SQUARE DIFF ------------------
+
+defun mi_ind_square_diff_2port (N,D,w,s,L)
+{
+	// octa without center tap
+	// no ground shield, wshield = 0, not stacked
+	mi_ind_diff (shape_square, N,D,w,s,0,L, FALSE, FALSE, FALSE);
+}
+
+
+defun mi_ind_square_diff_3port (N,D,w,s,L)
+{
+	// octa with center tap
+	// no ground shield, wshield = 0, not stacked
+	mi_ind_diff (shape_square, N,D,w,s,0, L, TRUE, FALSE, FALSE);
+}
+
+
+
+defun mi_ind_square_diff_stacked_2port (N,D,w,s,L)
+{
+	// octa without center tap
+	// no ground shield, wshield = 0, stacked
+	mi_ind_diff (shape_square, N,D,w,s,0,L, FALSE, FALSE, TRUE);
+}
+
+defun mi_ind_square_diff_stacked_3port (N,D,w,s,L)
+{
+	// octa with center tap
+	// no ground shield, wshield = 0, stacked
+	mi_ind_diff (shape_square, N,D,w,s,0, L, TRUE, FALSE, TRUE);
+}
+
+defun mi_ind_square_diff_pgs_2port (N,D,w,s,wshield,L)
+{
+	// octa without center tap, not stacked
+	mi_ind_diff (shape_square, N,D,w,s,wshield, L, FALSE, TRUE, FALSE);
+}
+
+defun mi_ind_square_diff_pgs_3port (N,D,w,s,wshield, L)
+{
+	// octa with center tap, not stacked
+	mi_ind_diff (shape_square, N,D,w,s,wshield, L, TRUE, TRUE, FALSE);
+}
+
+// --------------------- PICOHENRY SINGLETURN ---------------------------
+
+
+defun mi_pH_singleturn_3port (N, D,w, s,L)
+{
+	// single turn 3 port, round
+	mi_octa_singleturn (N, D,w, s,L, TRUE, FALSE);
+}
+
+defun mi_pH_singleturn_stacked_3port (N, D,w,s,L)
+{
+	// single turn 3 port, round
+	mi_octa_singleturn (N, D, w, s,L, TRUE, TRUE);
+}
+
+
+
+
+// ------------------- drawing code for all octagon and square diff -----------------
+
+defun mi_ind_diff (shape_type, N,D,w,s,wshield, L, includeCenterTap, includeGroundShield, stacked)
+{
+	// Octagon inductor
+	// Parameters:
+	// shape_type: shape_octa|shape_square
+	// N = number of turns (must be integer)
+	// D = outer diameter
+	// w = line width
+	// s = line spacing
+	// L = output of estimated (caluclated) inductance, using callback function in component defintion
+	// includeCenterTap = TRUE|FALSE: boolean
+	// stacked = TRUE|FALSE:  two conductors stacked for coil?
+
+
+	// get context of instance referencing this artwork
+	decl designContext = de_get_current_design_context();
+	// fputs(stderr, strcat("designContext = ", identify_value(designContext)));
+
+	// get mks to user units conversion factor
+	decl mks2uu = db_get_mks_to_uu_factor(designContext);
+	// fputs(stderr, strcat("Simulator units to user units conversion factor = ",identify_value(mks2uu)));
+
+	// convert to user units
+	D = gridsnap(D * mks2uu);
+	w = gridsnap(w * mks2uu);
+	s = gridsnap(s * mks2uu);
+	wshield = gridsnap(wshield * mks2uu);
+
+	// get layerID, db_layerID (layernumber [,purpose])
+	decl spiral_layerID = db_layerid(spiral_layer);
+	
+	decl underpass_layerID = db_layerid(underpass_layer);
+	decl underpass2_layerID = db_layerid(underpass2_layer);
+	decl crossover_layerID = db_layerid(crossover_layer);
+	decl via_layer_spiral_crossoverID  = db_layerid(via_layer_spiral_crossover);
+	decl via_layer_crossover_underpassID = db_layerid(via_layer_crossover_underpass);
+	decl via_layer_underpass_underpass2ID = db_layerid(via_layer_underpass_underpass2);
+	decl pgs_layerID = db_layerid(pgs_layer);
+	
+	// reference location (0,0) is at inductor center
+	decl x0 = gridsnap(D/2);
+	decl y0 = gridsnap(D/2);
+
+	// calculate width of crossover section
+	decl crossover_size = 3*w + s;
+	
+	// there is a minimum crossover width that must be respected
+	decl min_crossover_size = (2*s+w)*(sqrt(2)-1) + (s+w) + w;
+	//fputs(stderr,strcat("crossover_size = ",identify_value(crossover_size))); 
+	//fputs(stderr,strcat("min_crossover_size = ",identify_value(min_crossover_size))); 
+	if (crossover_size < min_crossover_size) crossover_size = min_crossover_size;	
+	
+	// max calculate size for vias between spiral and underpass
+	decl Di=D - 2*N*w - 2*(N-1)*s;
+	decl inner_segment_length = gridsnap(Di/(1+sqrt(2)));
+	// fputs(stderr,strcat("inner_segment_length = ",identify_value(inner_segment_length))); 
+	// fputs(stderr,strcat("crossover_size = ",identify_value(crossover_size))); 
+	decl max_possible_via_length = (inner_segment_length - crossover_size + w)/2 ;
+	// fputs(stderr,strcat("max_via_length = ",identify_value(max_via_length))); 
+	
+	// Default via array size 
+	decl via_size = 2.5*w;
+		
+	
+	// limit via array length to maximum possible value for this inner diameter;
+	if ((shape_type==shape_octa) && (N>1)) 
+	{
+	  if (via_size>max_possible_via_length) via_size=max_possible_via_length;
+	}  
+	
+	// Limit via array length to maximum length 
+	// decl max_crossover_via_length = 20;
+	// if (via_size>max_crossover_via_length) via_size=max_crossover_via_length;
+	
+	
+	// Underpass width is multiple of line width 
+	decl underpass_width = underpass_width_factor * w;
+	
+	// make sure underpass is not wider than maximum metal width
+	if (underpass_width >max_underpass_width) {
+	  underpass_width=max_underpass_width;
+	}  	
+
+
+	// based on settings in preferences.ael, this will draw a metal frame around the inductor
+	if (draw_groundframe) mi_draw_frame(designContext,x0, y0, D);
+
+
+
+	// Feedline spacing is based on crossover size
+	decl feedline_spacing; 
+	feedline_spacing = crossover_size;
+
+
+	// feed with ports 1/2
+
+	decl feed_extension; 
+	if (groundframe_extend_feedline && draw_groundframe) {
+	  feed_extension = D/2*(groundframe_size_factor-1) + groundframe_oversize;	
+	  if (groundframe_extend_over_frame) feed_extension = feed_extension  + groundframe_width;
+	} else {
+  	  // Feedline extension is fixed to 5um
+	  feed_extension = 5;
+	}	
+
+	db_add_rectangle(designContext, spiral_layerID, x0-w/2-feedline_spacing/2, y0-D/2+w, x0+w/2-feedline_spacing/2, y0-D/2-feed_extension);
+	db_create_pin(designContext, x0-feedline_spacing/2,   y0-D/2 -feed_extension, -90, spiral_layerID, 1, "1");
+
+	db_add_rectangle(designContext, spiral_layerID, x0-w/2+feedline_spacing/2, y0-D/2+w, x0+w/2+feedline_spacing/2, y0-D/2-feed_extension);
+ 	db_create_pin(designContext, x0+feedline_spacing/2,   y0-D/2 -feed_extension, -90, spiral_layerID, 2, "2");
+
+
+	// create area pin with pin purpose
+  	muehlhaus_create_pin_pinpurpose (designContext, spiral_layer, x0-feedline_spacing/2-w/2,   y0-D/2 -feed_extension, x0-feedline_spacing/2+w/2,   y0-D/2 -feed_extension+w/2, w/4, "LA"); 
+  	muehlhaus_create_pin_pinpurpose (designContext, spiral_layer, x0+feedline_spacing/2-w/2,   y0-D/2 -feed_extension, x0+feedline_spacing/2+w/2,   y0-D/2 -feed_extension+w/2, w/4, "LB"); 
+
+ 	
+ 	if (stacked) {
+	  db_add_rectangle(designContext, crossover_layerID, x0-w/2-feedline_spacing/2, y0-D/2+w, x0+w/2-feedline_spacing/2, y0-D/2-feed_extension);
+	  db_add_rectangle(designContext, crossover_layerID, x0-w/2+feedline_spacing/2, y0-D/2+w, x0+w/2+feedline_spacing/2, y0-D/2-feed_extension);
+	  mi_add_via(designContext, via_layer_spiral_crossoverID, x0-w/2-feedline_spacing/2, y0-D/2+w, x0+w/2-feedline_spacing/2, y0-D/2-feed_extension);
+	  mi_add_via(designContext, via_layer_spiral_crossoverID, x0-w/2+feedline_spacing/2, y0-D/2+w, x0+w/2+feedline_spacing/2, y0-D/2-feed_extension);
+ 	}
+
+ 	// draw the spiral segments (excluding crossover)
+	de_set_path_corner(PREF_SQUARE_PATH);
+	de_set_path_width(w);
+	decl i=0;
+	decl segment_length = (D-w) / (1+sqrt(2));
+	decl x1,y1;
+
+ 	for ( i=1; i<=N; i++ )
+ 	{
+ 	  if (shape_type==shape_octa) {
+ 	    
+ 	    // OCTAGON shape
+
+	      // left side
+	      
+	      // lower left quadrant
+	      db_add_path(designContext);
+	      x1 = gridsnap(x0-crossover_size/2+w/2);
+	      y1 = gridsnap(y0 + (-D/2 + w/2 + (i-1)*(w+s)));
+	      db_add_point(designContext, x1, y1);
+	      x1 = x0 - gridsnap(segment_length/2);
+	      db_add_point(designContext, x1, y1);
+	      x1 = x1 - gridsnap(segment_length/sqrt(2));
+	      y1 = y1 + gridsnap(segment_length/sqrt(2));
+	      db_add_point(designContext, x1, y1);
+	      y1 = y1 + gridsnap(segment_length/2+w); // half segment and a little bit
+	      db_add_point(designContext, x1, y1);
+	      decl dbShape = db_end(designContext, spiral_layerID);
+
+	      // upper left quadrant
+	      db_add_path(designContext);
+	      x1 = gridsnap(x0-crossover_size/2+w/2);
+	      y1 = gridsnap(y0 + D/2 - w/2 - (i-1)*(w+s));
+	      db_add_point(designContext, x1, y1);
+	      x1 = x0 - gridsnap(segment_length/2);
+	      db_add_point(designContext, x1, y1);
+	      x1 = x1 - gridsnap(segment_length/sqrt(2));
+	      y1 = y1 - gridsnap(segment_length/sqrt(2));
+	      db_add_point(designContext, x1, y1);
+	      y1 = y1 - gridsnap(segment_length/2+w); // half segment and a little bit
+	      db_add_point(designContext, x1, y1);
+	      decl dbShape = db_end(designContext, spiral_layerID);
+
+
+	      // if stacked, same trace on second layer
+
+	      if (stacked) {
+
+		// lower left quadrant
+		db_add_path(designContext);
+		x1 = gridsnap(x0-crossover_size/2+w/2);
+		y1 = gridsnap(y0 + (-D/2 + w/2 + (i-1)*(w+s)));
+		db_add_point(designContext, x1, y1);
+		x1 = x0 - gridsnap(segment_length/2);
+		db_add_point(designContext, x1, y1);
+		x1 = x1 - gridsnap(segment_length/sqrt(2));
+		y1 = y1 + gridsnap(segment_length/sqrt(2));
+		db_add_point(designContext, x1, y1);
+		y1 = y1 + gridsnap(segment_length/2+w); // half segment and a little bit
+		db_add_point(designContext, x1, y1);
+		decl dbShape = db_end(designContext, crossover_layerID);
+
+		// upper left quadrant
+		db_add_path(designContext);
+		x1 = gridsnap(x0-crossover_size/2+w/2);
+		y1 = gridsnap(y0 + D/2 - w/2 - (i-1)*(w+s));
+		db_add_point(designContext, x1, y1);
+		x1 = x0 - gridsnap(segment_length/2);
+		db_add_point(designContext, x1, y1);
+		x1 = x1 - gridsnap(segment_length/sqrt(2));
+		y1 = y1 - gridsnap(segment_length/sqrt(2));
+		db_add_point(designContext, x1, y1);
+		y1 = y1 - gridsnap(segment_length/2+w); // half segment and a little bit
+		db_add_point(designContext, x1, y1);
+		decl dbShape = db_end(designContext, crossover_layerID);
+	      }
+
+	      // right side
+	      
+	      // lower right quadrant
+	      db_add_path(designContext);
+	      x1 = gridsnap(x0+crossover_size/2-w/2);
+	      y1 = gridsnap(y0 + (-D/2 + w/2 + (i-1)*(w+s)));
+	      db_add_point(designContext, x1, y1);
+	      x1 = x0 + gridsnap(segment_length/2);
+	      db_add_point(designContext, x1, y1);
+	      x1 = x1 + gridsnap(segment_length/sqrt(2));
+	      y1 = y1 + gridsnap(segment_length/sqrt(2));
+	      db_add_point(designContext, x1, y1);
+	      y1 = y1 + gridsnap(segment_length/2 + w); // half segment and a little bit
+	      db_add_point(designContext, x1, y1);
+	      decl dbShape = db_end(designContext, spiral_layerID);
+
+	      // upper right quadrant
+	      db_add_path(designContext);
+	      x1 = gridsnap(x0+crossover_size/2-w/2);
+	      y1 = gridsnap(y0 + D/2 - w/2 - (i-1)*(w+s));
+	      db_add_point(designContext, x1, y1);
+	      x1 = x0 + gridsnap(segment_length/2);
+	      db_add_point(designContext, x1, y1);
+	      x1 = x1 + gridsnap(segment_length/sqrt(2));
+	      y1 = y1 - gridsnap(segment_length/sqrt(2));
+	      db_add_point(designContext, x1, y1);
+	      y1 = y1 - gridsnap(segment_length/2+w); // half segment and a little bit
+	      db_add_point(designContext, x1, y1);
+	      decl dbShape = db_end(designContext, spiral_layerID);
+
+
+	      if (stacked) {
+
+		// lower right quadrant
+		db_add_path(designContext);
+		x1 = gridsnap(x0+crossover_size/2-w/2);
+		y1 = gridsnap(y0 + (-D/2 + w/2 + (i-1)*(w+s)));
+		db_add_point(designContext, x1, y1);
+		x1 = x0 + gridsnap(segment_length/2);
+		db_add_point(designContext, x1, y1);
+		x1 = x1 + gridsnap(segment_length/sqrt(2));
+		y1 = y1 + gridsnap(segment_length/sqrt(2));
+		db_add_point(designContext, x1, y1);
+		y1 = y1 + gridsnap(segment_length/2 + w); // half segment and a little bit
+		db_add_point(designContext, x1, y1);
+		decl dbShape = db_end(designContext, crossover_layerID);
+
+		// upper right quadrant
+		db_add_path(designContext);
+		x1 = gridsnap(x0+crossover_size/2-w/2);
+		y1 = gridsnap(y0 + D/2 - w/2 - (i-1)*(w+s));
+		db_add_point(designContext, x1, y1);
+		x1 = x0 + gridsnap(segment_length/2);
+		db_add_point(designContext, x1, y1);
+		x1 = x1 + gridsnap(segment_length/sqrt(2));
+		y1 = y1 - gridsnap(segment_length/sqrt(2));
+		db_add_point(designContext, x1, y1);
+		y1 = y1 - gridsnap(segment_length/2+w); // half segment and a little bit
+		db_add_point(designContext, x1, y1);
+		decl dbShape = db_end(designContext, crossover_layerID);
+	      }
+
+	      // decrease segment length for next turn
+	      segment_length = segment_length - 2*(w+s)/(1+sqrt(2));
+	  
+	  } else {
+	    
+	    // SQUARE shape
+	    
+	      segment_length = gridsnap(D/2 - w/2 - (i-1)*(w+s));
+
+	      db_add_path(designContext);
+	      db_add_point(designContext, x0 - crossover_size/2+w/2, 		y0 - segment_length);
+	      db_add_point(designContext, x0 - segment_length, 			y0 - segment_length);
+	      db_add_point(designContext, x0 - segment_length, 			y0 + segment_length);
+	      db_add_point(designContext, x0 - crossover_size/2+w/2, 		y0 + segment_length);
+	      decl dbShape = db_end(designContext, spiral_layerID);
+
+	      if (stacked) {
+		db_add_path(designContext);
+		db_add_point(designContext, x0 - crossover_size/2+w/2, 		y0 - segment_length);
+		db_add_point(designContext, x0 - segment_length, 		y0 - segment_length);
+		db_add_point(designContext, x0 - segment_length, 		y0 + segment_length);
+		db_add_point(designContext, x0 - crossover_size/2+w/2, 		y0 + segment_length);
+		decl dbShape = db_end(designContext, crossover_layerID);
+	      }
+
+	      db_add_path(designContext);
+	      db_add_point(designContext, x0 + crossover_size/2-w/2, 		y0 - segment_length);
+	      db_add_point(designContext, x0 + segment_length, 			y0 - segment_length);
+	      db_add_point(designContext, x0 + segment_length, 			y0 + segment_length);
+	      db_add_point(designContext, x0 + crossover_size/2-w/2, 		y0 + segment_length);
+	      decl dbShape = db_end(designContext, spiral_layerID);
+
+
+	      if (stacked) {
+		db_add_path(designContext);
+		db_add_point(designContext, x0 + crossover_size/2-w/2, 		y0 - segment_length);
+		db_add_point(designContext, x0 + segment_length, 		y0 - segment_length);
+		db_add_point(designContext, x0 + segment_length, 		y0 + segment_length);
+		db_add_point(designContext, x0 + crossover_size/2-w/2, 		y0 + segment_length);
+		decl dbShape = db_end(designContext, crossover_layerID);
+	      }
+
+	    
+	  }
+	}
+	
+
+
+	de_set_path_corner(PREF_SQUARE_PATH);
+	de_set_path_width(w);
+
+	// number of crossovers (per side)
+	decl num_top_crossover = int((N-1)/2);
+	decl num_bot_crossover = int((N-1)/2);
+	if (is_even(N)) { num_top_crossover++ ; }
+	
+	// from inner to outer, this is where the crossover via starts
+	decl via_array_offset = crossover_size/2-w/2;
+
+
+	// bottom (south) side crossovers
+	for ( i=1; i<=num_bot_crossover; i++ )
+	{
+		/// bottom side
+
+		db_add_path(designContext);
+		
+		x1 = gridsnap(x0 - via_array_offset-via_size);
+		y1 = gridsnap(y0 - D/2 + 2*i*(w+s) + 0.5*w); 
+		db_add_point(designContext, x1,y1);
+		
+		x1 = x0 - gridsnap((w+s)/2);
+		db_add_point(designContext, x1,y1);
+
+		x1 = x1 + gridsnap(w+s);
+		y1 = y1 - gridsnap(w+s);
+		db_add_point(designContext, x1,y1);
+		
+		x1 = gridsnap(x0 + via_array_offset + via_size);
+		db_add_point(designContext, x1,y1);
+
+
+		// alternate direction of crossover
+		if (is_even(i))
+		{
+		  decl dbShape = db_end(designContext, crossover_layerID);
+		  // add via also
+		  mi_add_via(designContext, via_layer_spiral_crossoverID, x0-via_array_offset,  y0 - D/2 + 2*i*(w+s), x0-via_array_offset-via_size, y0 - D/2 + 2*i*(w+s) + w);
+		  mi_add_via(designContext, via_layer_spiral_crossoverID, x0+via_array_offset,  y0 - D/2 + (2*i-1)*(w+s), x0+via_array_offset+via_size, y0 - D/2 + (2*i-1)*(w+s) + w);
+
+		}
+		else
+		{
+		  decl dbShape = db_end(designContext, spiral_layerID);
+		  
+		  if (stacked) {
+		    mi_add_via(designContext, via_layer_spiral_crossoverID, x0-via_array_offset,  y0 - D/2 + 2*i*(w+s), x0-via_array_offset-via_size, y0 - D/2 + 2*i*(w+s) + w);
+		    mi_add_via(designContext, via_layer_spiral_crossoverID, x0+via_array_offset,  y0 - D/2 + (2*i-1)*(w+s), x0+via_array_offset+via_size, y0 - D/2 + (2*i-1)*(w+s) + w);
+		  }
+		}
+
+
+		db_add_path(designContext);
+
+		x1 = gridsnap(x0 - via_array_offset-via_size);
+		y1 = gridsnap(y0 - D/2 + 2*i*(w+s) - 0.5*w - s); 
+		db_add_point(designContext, x1,y1);
+		
+		x1 = x0 - gridsnap((w+s)/2);
+		db_add_point(designContext, x1,y1);
+
+		x1 = x1 + gridsnap(w+s);
+		y1 = y1 + gridsnap(w+s);
+		db_add_point(designContext, x1,y1);
+		
+		x1 = gridsnap(x0 + via_array_offset + via_size);
+		db_add_point(designContext, x1,y1);
+
+
+		// alternate direction of crossover
+		if (is_even(i))
+		{
+		  decl dbShape = db_end(designContext, spiral_layerID);
+
+		  if (stacked) {
+		    mi_add_via(designContext, via_layer_spiral_crossoverID, x0-via_array_offset,  y0 - D/2 + 2*i*(w+s) -s, x0-via_array_offset-via_size, y0 - D/2 + 2*i*(w+s) - w-s);
+		    mi_add_via(designContext, via_layer_spiral_crossoverID, x0+via_array_offset,  y0 - D/2 + (2*i+1)*(w+s) -s, x0+via_array_offset+via_size, y0 - D/2 + (2*i+1)*(w+s) - w-s);
+		  }
+		}
+		else
+		{
+		  decl dbShape = db_end(designContext, crossover_layerID);
+		  // add via also
+		  mi_add_via(designContext, via_layer_spiral_crossoverID, x0-via_array_offset,  y0 - D/2 + 2*i*(w+s) -s, x0-via_array_offset-via_size, y0 - D/2 + 2*i*(w+s) - w-s);
+		  mi_add_via(designContext, via_layer_spiral_crossoverID, x0+via_array_offset,  y0 - D/2 + (2*i+1)*(w+s) -s, x0+via_array_offset+via_size, y0 - D/2 + (2*i+1)*(w+s) - w-s);
+		}
+		
+		
+		
+	}
+
+	// top (north) side crossovers
+	for ( i=1; i<=num_top_crossover; i++ )
+	{
+		// top side
+
+		db_add_path(designContext);
+		
+		x1 = gridsnap(x0 - via_array_offset-via_size);
+		y1 = gridsnap(y0 + D/2 - 2*i*(w+s) + 0.5*w + s); 
+		db_add_point(designContext, x1,y1);
+		
+		x1 = x0 - gridsnap((w+s)/2);
+		db_add_point(designContext, x1,y1);
+
+		x1 = x1 + gridsnap(w+s);
+		y1 = y1 + gridsnap(w+s);
+		db_add_point(designContext, x1,y1);
+		
+		x1 = gridsnap(x0 + via_array_offset + via_size);
+		db_add_point(designContext, x1,y1);
+
+		// alternate direction of crossover
+		if (is_even(i))
+		{
+		  decl dbShape = db_end(designContext, crossover_layerID);
+		  // add via also
+		  mi_add_via(designContext, via_layer_spiral_crossoverID, x0-via_array_offset, y0 + D/2 - (2*i-1)*(w+s) , x0-via_array_offset-via_size,y0 + D/2 - (2*i-1)*(w+s) - w);
+		  mi_add_via(designContext, via_layer_spiral_crossoverID, x0+via_array_offset, y0 + D/2 - (2*i-2)*(w+s) , x0+via_array_offset+via_size,y0 + D/2 - (2*i-2)*(w+s) - w);
+		}
+		else
+		{
+		  decl dbShape = db_end(designContext, spiral_layerID);
+
+		  if (stacked) {
+		    mi_add_via(designContext, via_layer_spiral_crossoverID, x0-via_array_offset, y0 + D/2 - (2*i-1)*(w+s) , x0-via_array_offset-via_size,y0 + D/2 - (2*i-1)*(w+s) - w);
+		    mi_add_via(designContext, via_layer_spiral_crossoverID, x0+via_array_offset, y0 + D/2 - (2*i-2)*(w+s) , x0+via_array_offset+via_size,y0 + D/2 - (2*i-2)*(w+s) - w);
+		  }
+		  
+		}
+
+
+		db_add_path(designContext);
+
+		x1 = gridsnap(x0 - via_array_offset-via_size);
+		y1 = gridsnap(y0 + D/2 - 2*i*(w+s) + 1.5*w + 2*s); 
+		db_add_point(designContext, x1,y1);
+		
+		x1 = x0 - gridsnap((w+s)/2);
+		db_add_point(designContext, x1,y1);
+
+		x1 = x1 + gridsnap(w+s);
+		y1 = y1 - gridsnap(w+s);
+		db_add_point(designContext, x1,y1);
+		
+		x1 = gridsnap(x0 + via_array_offset + via_size);
+		db_add_point(designContext, x1,y1);
+
+		// alternate direction of crossover
+		if (is_even(i))
+		{
+		  decl dbShape = db_end(designContext, spiral_layerID);
+		  if (stacked) {
+		    mi_add_via(designContext, via_layer_spiral_crossoverID, x0-via_array_offset, y0 + D/2 - (2*i-1)*(w+s) + w+s, x0-via_array_offset-via_size, y0 + D/2 - (2*i-1)*(w+s) + s);
+		    mi_add_via(designContext, via_layer_spiral_crossoverID, x0+via_array_offset, y0 + D/2 - (2*i)*(w+s) + w+s , x0+via_array_offset+via_size,y0 + D/2 - (2*i)*(w+s) + s);
+		  }
+		}
+		else
+		{
+		  decl dbShape = db_end(designContext, crossover_layerID);
+		  // add via also
+		  mi_add_via(designContext, via_layer_spiral_crossoverID, x0-via_array_offset, y0 + D/2 - (2*i-1)*(w+s) + w+s, x0-via_array_offset-via_size, y0 + D/2 - (2*i-1)*(w+s) + s);
+		  mi_add_via(designContext, via_layer_spiral_crossoverID, x0+via_array_offset, y0 + D/2 - (2*i)*(w+s) + w+s , x0+via_array_offset+via_size,y0 + D/2 - (2*i)*(w+s) + s);
+		}
+
+	}
+
+
+
+	// one straight segment at inner turn
+	if (is_even(N))
+	{
+	  // even number of turns, N=2,4,6,..
+	  db_add_path(designContext);
+	  x1 = gridsnap(x0 - crossover_size/2 - w/2);
+	  y1 = gridsnap(y0 - D/2 + (N-1)*(w+s) + w/2);
+	  db_add_point(designContext, x1,y1);
+	  x1 = gridsnap(x0 + crossover_size/2 + w/2);
+	  db_add_point(designContext, x1,y1);
+	  decl dbShape = db_end(designContext, spiral_layerID);
+
+	  if (stacked) {
+
+	    db_add_path(designContext);
+	    x1 = gridsnap(x0 - crossover_size/2 - w/2);
+	    y1 = gridsnap(y0 - D/2 + (N-1)*(w+s) + w/2);
+	    db_add_point(designContext, x1,y1);
+	    x1 = gridsnap(x0 + crossover_size/2 + w/2);
+	    db_add_point(designContext, x1,y1);
+	    decl dbShape = db_end(designContext, crossover_layerID);
+
+	    mi_add_via(designContext, via_layer_spiral_crossoverID, x0-via_size/2, y0 - D/2 + (N-1)*(w+s), x0+via_size/2, y0 - D/2 + (N-1)*(w+s) +w);
+
+	  }
+	}
+	else
+	{
+	  // odd number of turns, N=1,3,5,..
+
+	  db_add_path(designContext);
+	  x1 = gridsnap(x0-crossover_size/2);
+	  y1 = gridsnap(y0 + D/2 - (N-1)*(w+s) -w/2);
+	  db_add_point(designContext, x1,y1);
+	  x1 = gridsnap(x0+crossover_size/2);
+	  db_add_point(designContext, x1,y1);
+	  decl dbShape = db_end(designContext, spiral_layerID);
+	  if (stacked) {
+	    db_add_path(designContext);
+	    x1 = gridsnap(x0-crossover_size/2);
+	    y1 = gridsnap(y0 + D/2 - (N-1)*(w+s) -w/2);
+	    db_add_point(designContext, x1,y1);
+	    x1 = gridsnap(x0+crossover_size/2);
+	    db_add_point(designContext, x1,y1);
+	    decl dbShape = db_end(designContext, crossover_layerID);
+
+	    mi_add_via(designContext, via_layer_spiral_crossoverID, x0-via_size/2, y0 + D/2 - (N-1)*(w+s), x0+via_size/2, y0 + D/2 - (N-1)*(w+s) -w);
+	  }
+	}
+
+
+	if (includeCenterTap)
+	{
+
+		// make sure we don't create a single via 
+		decl size_for_two_vias =  2 * mi_get_via_size(via_layer_spiral_crossover) + mi_get_via_gap(via_layer_spiral_crossover) + 2 * mi_get_via_margin(via_layer_spiral_crossover);
+		decl overlap_size = w;
+		if (w < size_for_two_vias) overlap_size = (1.1*size_for_two_vias);
+
+
+		// center tap
+		if (is_even(N))
+		{
+		  // even number of turns, N=2,4,6,..
+		  // center tap connection is between the input ports
+	  
+		  
+		  if (N>2) {
+
+			// outer pad & via
+			db_add_rectangle(designContext, spiral_layerID, x0-w/2, y0 - D/2 -feed_extension +overlap_size, x0+w/2, y0-D/2 - feed_extension);
+			mi_add_via(designContext, via_layer_spiral_crossoverID,		x0-w/2, y0 - D/2 -feed_extension +overlap_size, x0+w/2, y0-D/2 - feed_extension);
+			db_add_rectangle(designContext, crossover_layerID, x0-w/2, y0 - D/2 -feed_extension +overlap_size, x0+w/2, y0-D/2 - feed_extension);
+			mi_add_via(designContext, via_layer_crossover_underpassID, 	x0-w/2, y0 - D/2 -feed_extension +overlap_size, x0+w/2, y0-D/2 - feed_extension);
+
+			// inner pad & via
+			mi_add_via(designContext, via_layer_spiral_crossoverID, x0-1.5*w, y0 - D/2 + (N-1)*(w+s), x0+1.5*w, y0 - D/2 + (N-1)*(w+s) +w);
+			db_add_rectangle(designContext, crossover_layerID, x0-1.5*w, y0 - D/2 + (N-1)*(w+s), x0+1.5*w, y0 - D/2 + (N-1)*(w+s) +w);
+			mi_add_via(designContext, via_layer_crossover_underpassID, x0-1.5*w, y0 - D/2 + (N-1)*(w+s), x0+1.5*w, y0 - D/2 + (N-1)*(w+s) +w);
+
+			// underpass
+			db_add_rectangle(designContext, underpass_layerID, x0-w/2, y0 - D/2 + (N-1)*(w+s) +w, x0+w/2, y0 - D/2 - feed_extension);
+			db_add_rectangle(designContext, underpass_layerID, x0-1.5*w, y0 - D/2 + (N-1)*(w+s), x0+1.5*w, y0 - D/2 + (N-1)*(w+s) +w);
+
+			// Second underpass layer
+			mi_add_via(designContext, via_layer_underpass_underpass2ID, x0-w/2, y0 - D/2 -feed_extension +overlap_size, x0+w/2, y0-D/2 - feed_extension);
+			
+			mi_add_via(designContext, via_layer_underpass_underpass2ID, x0-1.5*w, y0 - D/2 + (N-1)*(w+s), x0+1.5*w, y0 - D/2 + (N-1)*(w+s) +w);
+			db_add_rectangle(designContext, underpass2_layerID, x0-w/2, y0 - D/2 + (N-1)*(w+s) +w, x0+w/2, y0 - D/2 - feed_extension);
+			db_add_rectangle(designContext, underpass2_layerID, x0-1.5*w, y0 - D/2 + (N-1)*(w+s), x0+1.5*w, y0 - D/2 + (N-1)*(w+s) +w);
+		  } else {
+		  
+		  	// special case N=2, where the center tap is connected straight on spiral layer
+			db_add_rectangle(designContext, spiral_layerID, x0-w/2, y0 - D/2 + (N-1)*(w+s) +w, x0+w/2, y0 - D/2 - feed_extension);
+		  
+		  }
+
+		  // pin is the same in both cases;
+		  db_create_pin(designContext, x0,   y0-D/2 - feed_extension, -90, spiral_layerID, 3, "3");
+			
+		  // create area pin with pin purpose
+		  muehlhaus_create_pin_pinpurpose (designContext, spiral_layer, x0-w/2, y0-D/2 -feed_extension, x0+w/2,   y0-D/2 -feed_extension+ w/2, w/4, "LC"); 
+
+		}
+		else
+		{
+
+		  // center pin for ground frame case with pin at ground frame
+		  decl yoffset;
+		  if (groundframe_extend_feedline && draw_groundframe) {
+		    yoffset = feed_extension;
+		  } else {
+		    yoffset = 3*s+w;
+		  }
+
+		  if (N>1) {
+
+
+			// odd number of turns, N=1,3,5,..
+			// center tap connection is on opposite side
+			
+			// outer pad & via
+			db_add_rectangle(designContext, spiral_layerID, x0-underpass_width/2, y0+D/2+yoffset-overlap_size, x0+underpass_width/2, y0+D/2+ yoffset);
+			mi_add_via(designContext, via_layer_spiral_crossoverID, 	x0-underpass_width/2, y0 + D/2 +yoffset-overlap_size, x0+underpass_width/2, y0 + D/2 + yoffset);
+			db_add_rectangle(designContext, crossover_layerID, x0-underpass_width/2, y0 + D/2 +yoffset-overlap_size, x0+underpass_width/2, y0 + D/2 +yoffset);
+			mi_add_via(designContext, via_layer_crossover_underpassID, x0-underpass_width/2, y0 + D/2 +yoffset-overlap_size, x0+underpass_width/2, y0 + D/2 +yoffset);
+
+			// inner pad & via
+			mi_add_via(designContext, via_layer_spiral_crossoverID, 	x0-1.5*w, y0 + D/2 - (N-1)*(w+s), x0+1.5*w, y0 + D/2 - (N-1)*(w+s) -w);
+			db_add_rectangle(designContext, crossover_layerID, x0-1.5*w, y0 + D/2 - (N-1)*(w+s), x0+1.5*w, y0 + D/2 - (N-1)*(w+s) -w);
+			mi_add_via(designContext, via_layer_crossover_underpassID, x0-1.5*w, y0 + D/2 - (N-1)*(w+s), x0+1.5*w, y0 + D/2 - (N-1)*(w+s) -w);
+
+			// underpass
+			db_add_rectangle(designContext, underpass_layerID, x0-underpass_width/2, y0 + D/2 - (N-1)*(w+s) -w, x0+underpass_width/2, y0 + D/2 +yoffset);
+			db_add_rectangle(designContext, underpass_layerID, 	x0-1.5*w, y0 + D/2 - (N-1)*(w+s), x0+1.5*w, y0 + D/2 - (N-1)*(w+s) -w);
+			
+			// Second underpass layer
+			mi_add_via(designContext, via_layer_underpass_underpass2ID, x0-underpass_width/2, y0 + D/2 +yoffset-overlap_size, x0+underpass_width/2, y0 + D/2 +yoffset);
+			mi_add_via(designContext, via_layer_underpass_underpass2ID, x0-1.5*w, y0 + D/2 - (N-1)*(w+s), x0+1.5*w, y0 + D/2 - (N-1)*(w+s) -w);
+			db_add_rectangle(designContext, underpass2_layerID, x0-underpass_width/2, y0 + D/2 - (N-1)*(w+s) -w, x0+underpass_width/2, y0 + D/2 +yoffset);
+			db_add_rectangle(designContext, underpass2_layerID, x0-1.5*w, y0 + D/2 - (N-1)*(w+s), x0+1.5*w, y0 + D/2 - (N-1)*(w+s) -w);
+
+		  } else {
+		  
+		  	// special case N=1, where the center tap is connected straight on spiral layer
+			db_add_rectangle(designContext, spiral_layerID, x0-underpass_width/2, y0 + D/2 - (N-1)*(w+s) -w, x0+underpass_width/2, y0 + D/2 +yoffset);
+		  
+		  }
+		  
+		  // pin is the same in both cases
+		  db_create_pin(designContext, x0,   y0 + D/2 + yoffset, 90, spiral_layerID, 3, "3");
+
+		  // create area pin with pin purpose
+		  muehlhaus_create_pin_pinpurpose (designContext, spiral_layer, x0-w/2, y0 + D/2 + yoffset, x0+w/2,   y0 + D/2 + yoffset-w, w/4, "LC"); 
+			
+
+		}  // if (is_even(N))
+	}  // if (includeCenterTap)
+
+
+
+
+	// Other layers that must be drawn under inductor
+	// These are in a list: other_inductor_layers_list
+	
+	// extra layers extension 
+	// extra_layer_extension variable is defined in technology.ael
+	
+	if (is_list(extra_inductor_layers_list))
+	{
+	  decl num_extra_layer = listlen(extra_inductor_layers_list);
+	  decl extra_layerNo;
+	  decl extra_string;
+	  decl extra_layerPurpose;
+	  decl extra_layerID;
+	  decl D1 = gridsnap(D/2 + extra_layer_extension);
+	  decl D2 = gridsnap(D1/(1+sqrt(2)));
+	  for ( i=0; i<num_extra_layer; i++ )
+	  {
+	    extra_string = nth(i, extra_inductor_layers_list);
+	    extra_layerNo = getLayerNum_NumPurposeString(extra_string);
+	    extra_layerPurpose = getPurposeNum_NumPurposeString (extra_string);
+	    extra_layerID = db_layerid(extra_layerNo, extra_layerPurpose);
+
+ 	    if (shape_type==shape_octa) {
+ 	    
+	      // OCTAGON shape
+	      
+	      // draw octagon clockwise
+	      db_add_polygon(designContext);
+	      db_add_point(designContext, x0+D2, y0-D1);
+	      db_add_point(designContext, x0+D1, y0-D2);
+	      db_add_point(designContext, x0+D1, y0+D2);
+	      db_add_point(designContext, x0+D2, y0+D1);
+	      db_add_point(designContext, x0-D2, y0+D1);
+	      db_add_point(designContext, x0-D1, y0+D2);
+	      db_add_point(designContext, x0-D1, y0-D2);
+	      db_add_point(designContext, x0-D2, y0-D1);
+
+	      decl dbShape = db_end(designContext, extra_layerID);
+	    
+	    } else {
+	      
+	      // SQUARE shape
+	      db_add_rectangle(designContext, extra_layerID, x0-D1, y0-D1, x0+D1, y0+D1);
+	    
+	    }
+	    
+	  }
+	}
+
+
+	if (includeGroundShield)
+	{
+		// patterned ground shield, simple straight lines on pgs_layer
+		decl pgs_width = wshield;
+		// use gap = width
+		decl pgs_gap = pgs_width;
+
+		// calculate total number of shield strips
+		decl num_shield = 1 + int( (D + w - pgs_width)/(pgs_width + pgs_gap));
+		decl y_middle_segment = 0.5 * (D+w) / (1+sqrt(2));
+		decl y1 = 0;
+		decl shorten = 0;
+
+		for ( i=1; i<=num_shield; i++ )
+		{
+			// y position of strip
+			y1 = y0 - (D+w)/2 + (i-1)*(pgs_width + pgs_gap);
+			// check if strip has full length, or must be shortened in the outer parts
+			if (abs(y1-y0)<=y_middle_segment)
+			{  // full length in middle segment
+			   shorten = 0;
+			} else {
+ 	    		  if (shape_type==shape_octa) { 	    
+  			   // for Octagon, shorten in the diagonal segments
+			    shorten = abs(y1-y0) - y_middle_segment + pgs_width;
+			  }  
+			}
+
+			db_add_rectangle(designContext, pgs_layerID, x0-D/2-w/2+shorten, y1, x0+D/2+w/2-shorten, y1 + pgs_width);
+		} // for
+
+		// connection strip in the middle
+		db_add_rectangle(designContext, pgs_layerID, x0-w/2, y0-D/2-w/2, x0+w/2, y0+D/2+w/2);
+		
+		// commented out because Metal1 shield performs better than Poly shield
+		// db_add_rectangle(designContext, pgs_connect_layerID, x0-w/2, y0-D/2-w/2, x0+w/2, y0+D/2+w/2); // conncetion to PGS on metal layer
+		// mi_add_via(designContext, pgs_contact_layerID, x0-w/2, y0-D/2-w/2, x0+w/2, y0+D/2+w/2); // via between these two
+		
+		// create pin for ground shield
+		if (includeCenterTap) {
+		  db_create_pin(designContext, x0,   y0+D/2 +w/2, 90, pgs_layerID, 4, "4");  // PGS pin number is 4, center tap is pin 3
+		} else {
+		  db_create_pin(designContext, x0,   y0+D/2 +w/2, 90, pgs_layerID, 3, "3");  // without center tap, PGS pin number is 3 
+		}
+
+
+	} // if (includeGroundShield)
+
+
+	// merge everything
+ 	merge_all();
+
+}
+
+// ============================== transformer ==============================================
+
+defun draw_horiz_crossover (x0,y0,D,w,s, Na, Nb, crossover_size, via_size, orientation_factor, designContext, layerID, is_stacked)
+
+{
+
+// x0, y0 = spiral center
+// D = outer diameter
+// w = width
+// s = spacing
+// Na, Nb = outer and inner turn to connect
+// layer_ID = layer to draw on
+// via_array_offset = start of via away from center line
+// via_size = size of via starting at via_array_offset
+// orientation_factor = 1 for bottom (south) layout side, -1 for north side
+
+// drawing direction is always from left to right
+
+  decl x1, y1, x2, y2;
+  
+  decl Ndiff = (Na-Nb);
+  
+  // fputs(stderr,sprintf("xoffset:%.2f",xoffset));          
+  
+  db_add_path(designContext);
+  x1 = gridsnap(x0 - crossover_size/2 - via_size + w/2);
+  y1 = gridsnap(y0 + orientation_factor*(- D/2 + 0.5*w + (Na-1)*(w+s)));
+  db_add_point(designContext, x1,y1);
+
+  x1 = x0 - gridsnap(mag(Ndiff)*(w+s)/2);
+  db_add_point(designContext, x1,y1);
+  
+  
+  x1 = x1 + gridsnap(mag(Ndiff)*(w+s));
+  y1 = y1 - orientation_factor * gridsnap(Ndiff*(w+s));
+  db_add_point(designContext, x1,y1);
+  
+  x1 = gridsnap(x0 + crossover_size/2 + via_size - w/2);
+  db_add_point(designContext, x1,y1);
+  
+  db_end(designContext, layerID);
+  
+  
+  // crossover vias 
+  if (layerID==db_layerid(crossover_layer) || is_stacked) {
+  
+    x1 = gridsnap(x0 - crossover_size/2 + w/2);
+    y1 = gridsnap(y0 + orientation_factor*(- D/2 + (Na-1)*(w+s)));
+    mi_add_via(designContext, db_layerid(via_layer_spiral_crossover), x1, y1, x1-via_size, y1+orientation_factor*w);
+    
+    x2 = gridsnap(x0 + crossover_size/2-w/2);
+    y2 = y1 - orientation_factor * gridsnap(Ndiff*(w+s));
+    mi_add_via(designContext, db_layerid(via_layer_spiral_crossover), x2, y2, x2+via_size, y2+orientation_factor*w);
+    
+  }
+
+}
+
+
+
+defun draw_vert_crossover (x0,y0,D,w,s, Na, Nb, crossover_size, via_size, orientation_factor, designContext, layerID, is_stacked)
+
+{
+
+// x0, y0 = spiral center
+// D = outer diameter
+// w = width
+// s = spacing
+// Na, Nb = outer and inner turn to connect
+// layer_ID = layer to draw on
+// via_size = size of via starting at via_array_offset
+// orientation_factor = 1 for left layout side, -1 for right side
+
+// drawing direction is always from bottom to right
+
+  decl x1, y1, x2, y2;
+  
+  db_add_path(designContext);
+  y1 = gridsnap(y0 - crossover_size/2 - via_size + w/2);
+  x1 = gridsnap(y0 + orientation_factor*(- D/2 + 0.5*w + (Na-1)*(w+s)));
+  db_add_point(designContext, x1,y1);
+
+  decl Ndiff = (Na-Nb);
+  
+  y1 = y0 - gridsnap(mag(Ndiff)*(w+s)/2);
+  db_add_point(designContext, x1,y1);
+  
+  y1 = y1 + gridsnap(mag(Ndiff)*(w+s));
+  x1 = x1 - orientation_factor * gridsnap(Ndiff*(w+s));
+  db_add_point(designContext, x1,y1);
+  
+  y1 = gridsnap(y0 + crossover_size/2 + via_size -w/2);
+  db_add_point(designContext, x1,y1);
+  
+  db_end(designContext, layerID);
+  
+  
+  // crossover vias 
+  if (layerID==db_layerid(crossover_layer) || is_stacked) {
+  
+    y1 = gridsnap(y0 - crossover_size/2+w/2);
+    x1 = gridsnap(x0 + orientation_factor*(- D/2 + (Na-1)*(w+s)));
+    mi_add_via(designContext, db_layerid(via_layer_spiral_crossover), x1, y1, x1 + orientation_factor*w, y1-via_size);
+
+    y2 = gridsnap(y0 + crossover_size/2-w/2 );
+    x2 = gridsnap(x1 - orientation_factor * (Ndiff*(w+s)));
+    mi_add_via(designContext, db_layerid(via_layer_spiral_crossover), x2, y2, x2 + orientation_factor*w, y2+via_size);
+
+  }
+
+}
+
+
+
+
+defun mi_interleaved_universal_4port (N1, N2, D, w, s, L1, L2, stackedparam, shapeparam)
+{
+
+  decl is_stacked = (val(stackedparam)==1); // 
+  decl is_square =  (val(shapeparam)==1); // 0=octa, 1=square
+
+  mi_interleaved_transformer (N1, N2, D, w, s, L1, L2, FALSE, is_stacked, is_square, FALSE);
+}
+
+defun mi_interleaved_universal_6port (N1, N2, D, w, s, L1, L2, stackedparam, shapeparam, centertap_for_emModel)
+{
+
+  decl is_stacked = (val(stackedparam)==1); // 
+  decl is_square =  (val(shapeparam)==1); // 0=octa, 1=square
+  decl is_tap_for_emModel = (val(centertap_for_emModel)==1); // center tap pins on constant layer 
+
+  mi_interleaved_transformer (N1, N2, D, w, s, L1, L2, TRUE, is_stacked, is_square, is_tap_for_emModel);
+}
+
+
+defun mi_interleaved_transformer (N1, N2, D, w, s, L1, L2,includeCenterTap, stacked, shape, centertap_for_emModel)
+{
+	// Octagon inductor
+	// Parameters:
+	// N1 = primary number of turns (must be integer)
+	// N2 = secondary number of turns (must be integer)
+	// D = outer diameter
+	// w = line width
+	// s = line spacing
+	// L1,L2 = estimated inductance, using callback function in component defintion
+
+
+	decl dbShape;
+
+	// get context of instance referencing this artwork
+	decl designContext = de_get_current_design_context();
+
+	// get mks to user units conversion factor
+	decl mks2uu = db_get_mks_to_uu_factor(designContext);
+	// fputs(stderr, strcat("Simulator units to user units conversion factor = ",identify_value(mks2uu)));
+
+	// convert to user units
+	D = gridsnap(D * mks2uu);
+	w = gridsnap(w * mks2uu);
+	s = gridsnap(s * mks2uu);
+	
+	decl N = N1+N2; // total number of turns primary + secondary
+	decl Nextra  = N1+N2 - 2*smaller(N1,N2); // extra turns to draw inside
+	
+	decl ytap1, ytap2;  // for center tap y position
+	decl tap_primary_done = FALSE;
+	decl tap_secondary_done = FALSE;
+
+
+	// get layerID, db_layerID (layernumber [,purpose])
+	decl spiral_layerID = db_layerid(spiral_layer);
+	
+	decl underpass_layerID = db_layerid(underpass_layer);
+	decl underpass2_layerID = db_layerid(underpass2_layer);
+	decl crossover_layerID = db_layerid(crossover_layer);
+	decl via_layer_spiral_crossoverID  = db_layerid(via_layer_spiral_crossover);
+	decl via_layer_crossover_underpassID = db_layerid(via_layer_crossover_underpass);
+	decl via_layer_underpass_underpass2ID = db_layerid(via_layer_underpass_underpass2);
+	decl pgs_layerID = db_layerid(pgs_layer);
+	
+	// reference location (0,0) is at inductor center
+	decl x0 = gridsnap(D/2);
+	decl y0 = gridsnap(D/2);
+
+	// calculate width of crossover section
+	decl crossover_size = 3*w + s;
+	
+	// there is a minimum crossover width that must be respected
+	decl min_crossover_size = (2*s+w)*(sqrt(2)-1) + (s+w) + w;
+	if (crossover_size < min_crossover_size) crossover_size = min_crossover_size;	
+	
+	// distance from center to via array starting point
+	decl via_array_offset = crossover_size/2-w/2;
+	
+	// max calculate size for vias between spiral and underpass
+	decl Di=D - 2*N*w - 2*(N-1)*s;
+	decl inner_segment_length = gridsnap(Di/(1+sqrt(2)));
+	if (shape==shape_square) inner_segment_length = gridsnap(Di);
+	decl max_possible_via_length = (inner_segment_length - crossover_size + w)/2 ;
+	
+	// Default via array size, large to minimize via losses
+	decl via_size = 5*w;
+		
+	// limit via array length to maximum possible value for this inner diameter;
+	if ((N>1) && (via_size>max_possible_via_length)) via_size=max_possible_via_length;
+	 
+	// Feedline spacing is based on crossover size
+	decl feedline_spacing = crossover_size; 
+	
+
+	// based on settings in preferences.ael, this will draw a metal frame around the inductor
+	if (draw_groundframe) mi_draw_frame(designContext,x0, y0, D);
+
+
+	// feed with ports 1/2
+
+	// feedline extension
+	decl feed_extension; 
+	if (groundframe_extend_feedline && draw_groundframe) {
+	  feed_extension = D/2*(groundframe_size_factor-1) + groundframe_oversize;	
+	  if (groundframe_extend_over_frame) feed_extension = feed_extension  + groundframe_width;
+	} else {
+  	  // Feedline extension is fixed to 5um
+	  feed_extension = 5;
+	}	
+
+	// pins/ports
+
+	// primary
+	db_add_rectangle(designContext, spiral_layerID, x0-w/2-feedline_spacing/2, y0-D/2+w, x0+w/2-feedline_spacing/2, y0-D/2-feed_extension);
+	db_create_pin(designContext, x0-feedline_spacing/2,   y0-D/2 -feed_extension, -90, spiral_layerID, 1, "1");
+	muehlhaus_create_pin_pinpurpose (designContext, spiral_layer, x0-feedline_spacing/2-w/2,   y0-D/2 -feed_extension, x0-feedline_spacing/2+w/2,   y0-D/2 -feed_extension+w/2, w/4, "P1"); 
+
+	db_add_rectangle(designContext, spiral_layerID, x0-w/2+feedline_spacing/2, y0-D/2+w, x0+w/2+feedline_spacing/2, y0-D/2-feed_extension);
+	db_create_pin(designContext, x0+feedline_spacing/2,   y0-D/2 -feed_extension, -90, spiral_layerID, 2, "2");
+	muehlhaus_create_pin_pinpurpose (designContext, spiral_layer, x0+feedline_spacing/2-w/2,   y0-D/2 -feed_extension, x0+feedline_spacing/2+w/2,   y0-D/2 -feed_extension+w/2, w/4, "P2"); 
+	
+	if (stacked) mi_add_via(designContext, via_layer_spiral_crossoverID, x0-feedline_spacing/2+w/2, y0-D/2, x0-feedline_spacing/2+w/2-via_size, y0-D/2+w);
+	if (stacked) mi_add_via(designContext, via_layer_spiral_crossoverID, x0+feedline_spacing/2-w/2, y0-D/2, x0+feedline_spacing/2-w/2+via_size, y0-D/2+w);
+
+	// secondary
+	db_add_rectangle(designContext, spiral_layerID, x0-w/2+feedline_spacing/2, y0+D/2-w, x0+w/2+feedline_spacing/2, y0+D/2+feed_extension);
+	db_create_pin(designContext, x0+feedline_spacing/2,   y0+D/2 +feed_extension, 90, spiral_layerID, 4, "4");
+	muehlhaus_create_pin_pinpurpose (designContext, spiral_layer, x0+feedline_spacing/2-w/2,   y0+D/2 +feed_extension, x0+feedline_spacing/2+w/2,   y0+D/2 +feed_extension-w/2, w/4, "S1"); 
+
+	db_add_rectangle(designContext, spiral_layerID, x0-w/2-feedline_spacing/2, y0+D/2-w, x0+w/2-feedline_spacing/2, y0+D/2+feed_extension);
+	db_create_pin(designContext, x0-feedline_spacing/2,   y0+D/2 +feed_extension, 90, spiral_layerID, 5, "5");
+	muehlhaus_create_pin_pinpurpose (designContext, spiral_layer, x0-feedline_spacing/2-w/2,   y0+D/2 +feed_extension, x0-feedline_spacing/2+w/2,   y0+D/2 +feed_extension-w/2, w/4, "S2"); 
+
+	if (stacked) mi_add_via(designContext, via_layer_spiral_crossoverID, x0-feedline_spacing/2+w/2, y0+D/2, x0-feedline_spacing/2+w/2-via_size, y0+D/2-w);
+	if (stacked) mi_add_via(designContext, via_layer_spiral_crossoverID, x0+feedline_spacing/2-w/2, y0+D/2, x0+feedline_spacing/2-w/2+via_size, y0+D/2-w);
+
+
+ 	// draw the spiral segments (excluding crossover) for primary 
+	de_set_path_corner(PREF_SQUARE_PATH);
+	de_set_path_width(w);
+	decl i=0;
+	decl segment_length = (D-w) / (1+sqrt(2));
+	decl x1,y1;
+ 	
+ 	
+ 	// start at outer turn
+ 	for ( i=1; i<=2*smaller(N1,N2); i++ )
+ 	{
+
+	    if (shape==shape_octa) {
+	      
+	      // lower left quadrant
+	      db_add_path(designContext);
+	      y1 = gridsnap(y0 + (-D/2 + w/2 + (i-1)*(w+s)));
+	      x1 = gridsnap(x0-feedline_spacing/2+w/2);  
+	      if (i==N) x1=x0+w; // innermost turns
+	      db_add_point(designContext, x1, y1);
+	      x1 = x0 - gridsnap(segment_length/2);
+	      db_add_point(designContext, x1, y1);
+	      x1 = x1 - gridsnap(segment_length/sqrt(2));
+	      y1 = y1 + gridsnap(segment_length/sqrt(2));
+	      db_add_point(designContext, x1, y1);
+	      y1=y0-crossover_size/2+w/2;
+	      db_add_point(designContext, x1, y1);
+	      dbShape = db_end(designContext, spiral_layerID);
+
+	      // upper left quadrant
+	      db_add_path(designContext);
+	      y1 = gridsnap(y0 + D/2 - w/2 - (i-1)*(w+s));
+	      x1 = gridsnap(x0-feedline_spacing/2+w/2);  
+	      if (i==N) x1=x0+w; // innermost turns
+	      db_add_point(designContext, x1, y1);
+	      x1 = x0 - gridsnap(segment_length/2);
+	      db_add_point(designContext, x1, y1);
+	      x1 = x1 - gridsnap(segment_length/sqrt(2));
+	      y1 = y1 - gridsnap(segment_length/sqrt(2));
+	      db_add_point(designContext, x1, y1);
+	      y1=y0+crossover_size/2-w/2;
+	      db_add_point(designContext, x1, y1);
+	      dbShape = db_end(designContext, spiral_layerID);
+     
+	      // lower right quadrant
+	      db_add_path(designContext);
+	      y1 = gridsnap(y0 + (-D/2 + w/2 + (i-1)*(w+s)));
+	      x1 = gridsnap(x0+feedline_spacing/2-w/2);  
+	      if (i==N) x1=x0-w; // innermost turns
+	      db_add_point(designContext, x1, y1);
+	      x1 = x0 + gridsnap(segment_length/2);
+	      db_add_point(designContext, x1, y1);
+	      x1 = x1 + gridsnap(segment_length/sqrt(2));
+	      y1 = y1 + gridsnap(segment_length/sqrt(2));
+	      db_add_point(designContext, x1, y1);
+	      y1=y0-crossover_size/2+w/2;
+	      db_add_point(designContext, x1, y1);
+	      dbShape = db_end(designContext, spiral_layerID);
+
+	      // upper right quadrant
+	      db_add_path(designContext);
+	      y1 = gridsnap(y0 + D/2 - w/2 - (i-1)*(w+s));
+	      x1 = gridsnap(x0+feedline_spacing/2-w/2);  
+	      if (i==N) x1=x0-w; // innermost turns
+	      db_add_point(designContext, x1, y1);
+	      x1 = x0 + gridsnap(segment_length/2);
+	      db_add_point(designContext, x1, y1);
+	      x1 = x1 + gridsnap(segment_length/sqrt(2));
+	      y1 = y1 - gridsnap(segment_length/sqrt(2));
+	      db_add_point(designContext, x1, y1);
+	      y1=y0+crossover_size/2-w/2;
+	      db_add_point(designContext, x1, y1);
+	      dbShape = db_end(designContext, spiral_layerID);
+	      
+	      if (stacked) {
+
+		// lower left quadrant
+		db_add_path(designContext);
+		x1 = gridsnap(x0-feedline_spacing/2+w/2);  
+		if (i==N) x1=x0+w; // innermost turns
+		y1 = gridsnap(y0 + (-D/2 + w/2 + (i-1)*(w+s)));
+		db_add_point(designContext, x1, y1);
+		x1 = x0 - gridsnap(segment_length/2);
+		db_add_point(designContext, x1, y1);
+		x1 = x1 - gridsnap(segment_length/sqrt(2));
+		y1 = y1 + gridsnap(segment_length/sqrt(2));
+		db_add_point(designContext, x1, y1);
+		y1=y0-crossover_size/2+w/2;
+		db_add_point(designContext, x1, y1);
+		dbShape = db_end(designContext, crossover_layerID);
+
+		// upper left quadrant
+		db_add_path(designContext);
+		x1 = gridsnap(x0-feedline_spacing/2+w/2);  
+		if (i==N) x1=x0+w; // innermost turns
+		y1 = gridsnap(y0 + D/2 - w/2 - (i-1)*(w+s));
+		db_add_point(designContext, x1, y1);
+		x1 = x0 - gridsnap(segment_length/2);
+		db_add_point(designContext, x1, y1);
+		x1 = x1 - gridsnap(segment_length/sqrt(2));
+		y1 = y1 - gridsnap(segment_length/sqrt(2));
+		db_add_point(designContext, x1, y1);
+		y1=y0+crossover_size/2-w/2;
+		db_add_point(designContext, x1, y1);
+		dbShape = db_end(designContext, crossover_layerID);
+
+		// lower right quadrant
+		db_add_path(designContext);
+		x1 = gridsnap(x0+feedline_spacing/2-w/2);  
+		if (i==N) x1=x0-w; // innermost turns
+		y1 = gridsnap(y0 + (-D/2 + w/2 + (i-1)*(w+s)));
+		db_add_point(designContext, x1, y1);
+		x1 = x0 + gridsnap(segment_length/2);
+		db_add_point(designContext, x1, y1);
+		x1 = x1 + gridsnap(segment_length/sqrt(2));
+		y1 = y1 + gridsnap(segment_length/sqrt(2));
+		db_add_point(designContext, x1, y1);
+		y1=y0-crossover_size/2+w/2;
+		db_add_point(designContext, x1, y1);
+		dbShape = db_end(designContext, crossover_layerID);
+
+		// upper right quadrant
+		db_add_path(designContext);
+		x1 = gridsnap(x0+feedline_spacing/2-w/2);  
+		if (i==N) x1=x0-w; // innermost turns
+		y1 = gridsnap(y0 + D/2 - w/2 - (i-1)*(w+s));
+		db_add_point(designContext, x1, y1);
+		x1 = x0 + gridsnap(segment_length/2);
+		db_add_point(designContext, x1, y1);
+		x1 = x1 + gridsnap(segment_length/sqrt(2));
+		y1 = y1 - gridsnap(segment_length/sqrt(2));
+		db_add_point(designContext, x1, y1);
+		y1=y0+crossover_size/2-w/2;
+		db_add_point(designContext, x1, y1);
+		dbShape = db_end(designContext, crossover_layerID);
+    
+	      }
+
+	      // decrease segment length for next turn
+	      segment_length = segment_length - 2 * (w+s)/(1+sqrt(2));
+	      
+	    } else {  
+	      
+	      // square shape
+
+	      segment_length = gridsnap(D/2 - w/2 - (i-1)*(w+s));
+
+	      // lower left quadrant
+	      db_add_path(designContext);
+	      y1 = gridsnap(y0 + segment_length);
+	      x1 = gridsnap(x0-feedline_spacing/2+w/2);  
+	      if (i==N) x1=x0+w; // innermost turns
+	      db_add_point(designContext, x1, y1);
+	      x1 = x0 - segment_length;
+	      db_add_point(designContext, x1, y1);
+	      y1 = y1 - gridsnap(segment_length - crossover_size/2 + w/2);
+	      db_add_point(designContext, x1, y1);
+	      dbShape = db_end(designContext, spiral_layerID);
+
+	      // upper left quadrant
+	      db_add_path(designContext);
+	      y1 = gridsnap(y0 - segment_length);
+	      x1 = gridsnap(x0-feedline_spacing/2+w/2);  
+	      if (i==N) x1=x0+w; // innermost turns
+	      db_add_point(designContext, x1, y1);
+	      x1 = x0 - segment_length;
+	      db_add_point(designContext, x1, y1);
+	      y1 = y1 + gridsnap(segment_length - crossover_size/2 + w/2);
+	      db_add_point(designContext, x1, y1);
+	      dbShape = db_end(designContext, spiral_layerID);
+     
+	      // upper right quadrant
+	      db_add_path(designContext);
+	      y1 = gridsnap(y0 + segment_length);
+	      x1 = gridsnap(x0+feedline_spacing/2-w/2);  
+	      if (i==N) x1=x0+w; // innermost turns
+	      db_add_point(designContext, x1, y1);
+	      x1 = x0 + segment_length;
+	      db_add_point(designContext, x1, y1);
+	      y1 = y1 - gridsnap(segment_length - crossover_size/2 + w/2);
+	      db_add_point(designContext, x1, y1);
+	      dbShape = db_end(designContext, spiral_layerID);
+
+	      // lower right quadrant
+	      if (i==N) x1=x0+w; // innermost turns
+	      db_add_path(designContext);
+	      x1 = gridsnap(x0+feedline_spacing/2-w/2);  
+	      y1 = gridsnap(y0 - segment_length);
+	      db_add_point(designContext, x1, y1);
+	      x1 = x0 + segment_length;
+	      db_add_point(designContext, x1, y1);
+	      y1 = y1 + gridsnap(segment_length - crossover_size/2 + w/2);
+	      db_add_point(designContext, x1, y1);
+	      dbShape = db_end(designContext, spiral_layerID);
+
+
+	      if (stacked) {
+		// lower left quadrant
+		db_add_path(designContext);
+		x1 = gridsnap(x0-feedline_spacing/2+w/2);  
+		if (i==N) x1=x0+w; // innermost turns
+		y1 = gridsnap(y0 + segment_length);
+		db_add_point(designContext, x1, y1);
+		x1 = x0 - segment_length;
+		db_add_point(designContext, x1, y1);
+		y1 = y1 - gridsnap(segment_length - crossover_size/2 + w/2);
+		db_add_point(designContext, x1, y1);
+		dbShape = db_end(designContext, crossover_layerID);
+
+		// upper left quadrant
+		db_add_path(designContext);
+		x1 = gridsnap(x0-feedline_spacing/2+w/2);  
+		if (i==N) x1=x0+w; // innermost turns
+		y1 = gridsnap(y0 - segment_length);
+		db_add_point(designContext, x1, y1);
+		x1 = x0 - segment_length;
+		db_add_point(designContext, x1, y1);
+		y1 = y1 + gridsnap(segment_length - crossover_size/2 + w/2);
+		db_add_point(designContext, x1, y1);
+		dbShape = db_end(designContext, crossover_layerID);
+
+		// upper right quadrant
+		db_add_path(designContext);
+		x1 = gridsnap(x0+feedline_spacing/2-w/2);  
+		if (i==N) x1=x0+w; // innermost turns
+		y1 = gridsnap(y0 + segment_length);
+		db_add_point(designContext, x1, y1);
+		x1 = x0 + segment_length;
+		db_add_point(designContext, x1, y1);
+		y1 = y1 - gridsnap(segment_length - crossover_size/2 + w/2);
+		db_add_point(designContext, x1, y1);
+		dbShape = db_end(designContext, crossover_layerID);
+
+		// lower right quadrant
+		db_add_path(designContext);
+		x1 = gridsnap(x0+feedline_spacing/2-w/2);  
+		if (i==N) x1=x0+w; // innermost turns
+		y1 = gridsnap(y0 - segment_length);
+		db_add_point(designContext, x1, y1);
+		x1 = x0 + segment_length;
+		db_add_point(designContext, x1, y1);
+		y1 = y1 + gridsnap(segment_length - crossover_size/2 + w/2);
+		db_add_point(designContext, x1, y1);
+		dbShape = db_end(designContext, crossover_layerID);
+	      }
+
+	    
+	    }
+	      
+	  
+	}
+	
+
+
+	de_set_path_corner(PREF_SQUARE_PATH);
+	de_set_path_width(w);
+	
+	
+	// Crossovers regular, south side
+	for ( i=2; i<2*smaller(N1,N2); i++ )
+	{
+	  if (is_even(i)) draw_horiz_crossover (x0,y0,D,w,s, i, i+1,crossover_size, via_size, 1, designContext, crossover_layerID, stacked);
+  	  else draw_horiz_crossover (x0,y0,D,w,s, i, i-1, crossover_size, via_size, 1, designContext, spiral_layerID, stacked);
+	}
+
+	// Crossovers regular, north side
+	for ( i=2; i<2*smaller(N1,N2); i++ )
+	{
+	  if (is_even(i)) draw_horiz_crossover (x0,y0,D,w,s, i, i+1, crossover_size, via_size, -1, designContext, crossover_layerID, stacked);
+  	  else draw_horiz_crossover (x0,y0,D,w,s, i, i-1, crossover_size, via_size, -1, designContext, spiral_layerID, stacked);
+	}
+	
+
+	// Crossovers left side 
+	for ( i=1; i<2*smaller(N1,N2); i=i+2 )
+	{
+	  if (is_even(i)) { 
+	    draw_vert_crossover (x0,y0,D,w,s, i, i+1, crossover_size, via_size, 1, designContext, crossover_layerID, stacked);
+	    draw_vert_crossover (x0,y0,D,w,s, i+1, i, crossover_size, via_size, 1, designContext, spiral_layerID, stacked);
+	  } else {
+	    draw_vert_crossover (x0,y0,D,w,s, i, i+1, crossover_size, via_size, 1, designContext, spiral_layerID, stacked);
+	    draw_vert_crossover (x0,y0,D,w,s, i+1, i, crossover_size, via_size, 1, designContext, crossover_layerID, stacked);
+	  }
+	}
+
+
+	// Crossovers right side 
+	for ( i=1; i<2*smaller(N1,N2); i=i+2 )
+	{
+	  if (is_even(i)) { 
+	    draw_vert_crossover (x0,y0,D,w,s, i, i+1, crossover_size, via_size, -1, designContext, spiral_layerID, stacked);
+	    draw_vert_crossover (x0,y0,D,w,s, i+1, i, crossover_size, via_size, -1, designContext, crossover_layerID, stacked);
+	  } else {
+	    draw_vert_crossover (x0,y0,D,w,s, i, i+1, crossover_size, via_size, -1, designContext, crossover_layerID, stacked);
+	    draw_vert_crossover (x0,y0,D,w,s, i+1, i, crossover_size, via_size, -1, designContext, spiral_layerID, stacked);
+	  }
+	}
+	
+
+
+	// Code above draws the side-by-side artwork, now we need to draw the extra items for N1!=N2
+	if (N1!=N2) {
+
+	  decl crossover_side;
+	  
+	  // straight connection for smaller turn number
+	  if ( (is_even(smaller(N1,N2)) && (N2>N1)) || (NOT is_even(smaller(N1,N2)) && (N1>N2)) ) crossover_side=-1; else crossover_side=1;
+
+	  y1 = y0 + crossover_side * (D/2 - (2*smaller(N1,N2)-1)*(w+s));
+	  db_add_rectangle(designContext, spiral_layerID, x0-feedline_spacing/2, y1, x0+feedline_spacing/2, y1-crossover_side*w);
+	  if (stacked) {
+	    db_add_rectangle(designContext, crossover_layerID, x0-feedline_spacing/2, y1, x0+feedline_spacing/2, y1-crossover_side*w);
+	    mi_add_via(designContext, via_layer_spiral_crossoverID, x0-crossover_size/2, y1, x0+crossover_size/2, y1-crossover_side*w);
+	  }  
+	    	    
+ 
+	  // remember this y1 for placing the center taps
+	  ytap1 = y1-crossover_side*w/2;
+
+
+	  // crossovers extra turns
+	  decl Nstart = 2*smaller(N1,N2);
+	  decl Nstop = Nstart + Nextra;
+	  if (N2>N1) crossover_side=-1; else crossover_side=1;
+	  if (NOT is_even (smaller(N1,N2))) crossover_side = -crossover_side;
+
+	  // Extra crossovers for additional turns, south side
+	  for ( i=Nstart; i<Nstop; i++ )
+	  {
+	    draw_horiz_crossover (x0,y0,D,w,s, i, i+1, crossover_size, via_size, crossover_side, designContext, spiral_layerID, stacked);	
+	    draw_horiz_crossover (x0,y0,D,w,s, i+1, i, crossover_size, via_size, crossover_side, designContext, crossover_layerID, stacked);
+	    crossover_side = -crossover_side;
+	  }
+	  
+	  
+	  // straight segment innermost extra turn
+	  y1 = y0 - crossover_side * (D/2 - Nstop*w - (Nstop-1)*s);
+	  db_add_rectangle(designContext, spiral_layerID, x0-feedline_spacing/2, y1, x0+feedline_spacing/2, y1-crossover_side*w);
+	  if (stacked) {
+	    db_add_rectangle(designContext, crossover_layerID, x0-feedline_spacing/2, y1, x0+feedline_spacing/2, y1-crossover_side*w);
+	    mi_add_via(designContext, via_layer_spiral_crossoverID, x0-crossover_size/2, y1, x0+crossover_size/2, y1-crossover_side*w); 
+	  }  
+	  // remember this y1 for placing the center taps
+	  ytap2 = y1-crossover_side*w/2;
+
+	
+	  // start at outer turn
+	  for ( i=2*smaller(N1,N2)+1; i<=N; i++ )
+	  {
+
+	      if (shape==shape_octa) {
+
+		// lower left quadrant
+		db_add_path(designContext);
+		x1 = gridsnap(x0-feedline_spacing/2+w/2);  
+		y1 = gridsnap(y0 + (-D/2 + w/2 + (i-1)*(w+s)));
+		db_add_point(designContext, x1, y1);
+		x1 = x0 - gridsnap(segment_length/2);
+		db_add_point(designContext, x1, y1);
+		x1 = x1 - gridsnap(segment_length/sqrt(2));
+		y1 = y1 + gridsnap(segment_length/sqrt(2));
+		db_add_point(designContext, x1, y1);
+		y1=y0+w/2;
+		db_add_point(designContext, x1, y1);
+		dbShape = db_end(designContext, spiral_layerID);
+
+		// upper left quadrant
+		db_add_path(designContext);
+		x1 = gridsnap(x0-feedline_spacing/2+w/2);  
+		y1 = gridsnap(y0 + D/2 - w/2 - (i-1)*(w+s));
+		db_add_point(designContext, x1, y1);
+		x1 = x0 - gridsnap(segment_length/2);
+		db_add_point(designContext, x1, y1);
+		x1 = x1 - gridsnap(segment_length/sqrt(2));
+		y1 = y1 - gridsnap(segment_length/sqrt(2));
+		db_add_point(designContext, x1, y1);
+		y1=y0-w/2;
+		db_add_point(designContext, x1, y1);
+		dbShape = db_end(designContext, spiral_layerID);
+
+		// lower right quadrant
+		db_add_path(designContext);
+		x1 = gridsnap(x0+feedline_spacing/2-w/2);  
+		y1 = gridsnap(y0 + (-D/2 + w/2 + (i-1)*(w+s)));
+		db_add_point(designContext, x1, y1);
+		x1 = x0 + gridsnap(segment_length/2);
+		db_add_point(designContext, x1, y1);
+		x1 = x1 + gridsnap(segment_length/sqrt(2));
+		y1 = y1 + gridsnap(segment_length/sqrt(2));
+		db_add_point(designContext, x1, y1);
+		y1=y0+w/2;
+		db_add_point(designContext, x1, y1);
+		dbShape = db_end(designContext, spiral_layerID);
+
+		// upper right quadrant
+		db_add_path(designContext);
+		x1 = gridsnap(x0+feedline_spacing/2-w/2);  
+		y1 = gridsnap(y0 + D/2 - w/2 - (i-1)*(w+s));
+		db_add_point(designContext, x1, y1);
+		x1 = x0 + gridsnap(segment_length/2);
+		db_add_point(designContext, x1, y1);
+		x1 = x1 + gridsnap(segment_length/sqrt(2));
+		y1 = y1 - gridsnap(segment_length/sqrt(2));
+		db_add_point(designContext, x1, y1);
+		y1=y0-w/2;
+		db_add_point(designContext, x1, y1);
+		dbShape = db_end(designContext, spiral_layerID);
+
+		if (stacked) {
+
+		  // lower left quadrant
+		  db_add_path(designContext);
+		  x1 = gridsnap(x0-feedline_spacing/2+w/2);  
+		  y1 = gridsnap(y0 + (-D/2 + w/2 + (i-1)*(w+s)));
+		  db_add_point(designContext, x1, y1);
+		  x1 = x0 - gridsnap(segment_length/2);
+		  db_add_point(designContext, x1, y1);
+		  x1 = x1 - gridsnap(segment_length/sqrt(2));
+		  y1 = y1 + gridsnap(segment_length/sqrt(2));
+		  db_add_point(designContext, x1, y1);
+		  y1=y0+w/2;
+		  db_add_point(designContext, x1, y1);
+		  dbShape = db_end(designContext, crossover_layerID);
+
+		  // upper left quadrant
+		  db_add_path(designContext);
+		  x1 = gridsnap(x0-feedline_spacing/2+w/2);  
+		  y1 = gridsnap(y0 + D/2 - w/2 - (i-1)*(w+s));
+		  db_add_point(designContext, x1, y1);
+		  x1 = x0 - gridsnap(segment_length/2);
+		  db_add_point(designContext, x1, y1);
+		  x1 = x1 - gridsnap(segment_length/sqrt(2));
+		  y1 = y1 - gridsnap(segment_length/sqrt(2));
+		  db_add_point(designContext, x1, y1);
+		  y1=y0-w/2;
+		  db_add_point(designContext, x1, y1);
+		  dbShape = db_end(designContext, crossover_layerID);
+
+		  // lower right quadrant
+		  db_add_path(designContext);
+		  x1 = gridsnap(x0+feedline_spacing/2-w/2);  
+		  y1 = gridsnap(y0 + (-D/2 + w/2 + (i-1)*(w+s)));
+		  db_add_point(designContext, x1, y1);
+		  x1 = x0 + gridsnap(segment_length/2);
+		  db_add_point(designContext, x1, y1);
+		  x1 = x1 + gridsnap(segment_length/sqrt(2));
+		  y1 = y1 + gridsnap(segment_length/sqrt(2));
+		  db_add_point(designContext, x1, y1);
+		  y1=y0+w/2;
+		  db_add_point(designContext, x1, y1);
+		  dbShape = db_end(designContext, crossover_layerID);
+
+		  // upper right quadrant
+		  db_add_path(designContext);
+		  x1 = gridsnap(x0+feedline_spacing/2-w/2);  
+		  y1 = gridsnap(y0 + D/2 - w/2 - (i-1)*(w+s));
+		  db_add_point(designContext, x1, y1);
+		  x1 = x0 + gridsnap(segment_length/2);
+		  db_add_point(designContext, x1, y1);
+		  x1 = x1 + gridsnap(segment_length/sqrt(2));
+		  y1 = y1 - gridsnap(segment_length/sqrt(2));
+		  db_add_point(designContext, x1, y1);
+		  y1=y0-w/2;
+		  db_add_point(designContext, x1, y1);
+		  dbShape = db_end(designContext, crossover_layerID);
+
+
+		}
+
+		// decrease segment length for next turn
+		segment_length = segment_length - 2 * (w+s)/(1+sqrt(2));
+
+	      } else {  
+	      
+		// square shape
+		segment_length = gridsnap(D/2 - w/2 - (i-1)*(w+s));
+
+		// lower left quadrant
+		db_add_path(designContext);
+		x1 = gridsnap(x0-feedline_spacing/2+w/2);  
+		y1 = gridsnap(y0 + segment_length);
+		db_add_point(designContext, x1, y1);
+		x1 = x0 - segment_length;
+		db_add_point(designContext, x1, y1);
+		y1 = y0 - w/2;
+		db_add_point(designContext, x1, y1);
+		dbShape = db_end(designContext, spiral_layerID);
+
+		// upper left quadrant
+		db_add_path(designContext);
+		x1 = gridsnap(x0-feedline_spacing/2+w/2);  
+		y1 = gridsnap(y0 - segment_length);
+		db_add_point(designContext, x1, y1);
+		x1 = x0 - segment_length;
+		db_add_point(designContext, x1, y1);
+		y1 = y0 + w/2;
+		db_add_point(designContext, x1, y1);
+		dbShape = db_end(designContext, spiral_layerID);
+
+		// upper right quadrant
+		db_add_path(designContext);
+		x1 = gridsnap(x0+feedline_spacing/2-w/2);  
+		y1 = gridsnap(y0 + segment_length);
+		db_add_point(designContext, x1, y1);
+		x1 = x0 + segment_length;
+		db_add_point(designContext, x1, y1);
+		y1 = y0 - w/2;
+		db_add_point(designContext, x1, y1);
+		dbShape = db_end(designContext, spiral_layerID);
+
+		// lower right quadrant
+		db_add_path(designContext);
+		x1 = gridsnap(x0+feedline_spacing/2-w/2);  
+		y1 = gridsnap(y0 - segment_length);
+		db_add_point(designContext, x1, y1);
+		x1 = x0 + segment_length;
+		db_add_point(designContext, x1, y1);
+		y1 = y0 + w/2;
+		db_add_point(designContext, x1, y1);
+		dbShape = db_end(designContext, spiral_layerID);
+
+
+		if (stacked) {
+		  // lower left quadrant
+		  db_add_path(designContext);
+		  x1 = gridsnap(x0-feedline_spacing/2+w/2);  
+		  y1 = gridsnap(y0 + segment_length);
+		  db_add_point(designContext, x1, y1);
+		  x1 = x0 - segment_length;
+		  db_add_point(designContext, x1, y1);
+		  y1 = y0 - w/2;
+		  db_add_point(designContext, x1, y1);
+		  dbShape = db_end(designContext, crossover_layerID);
+
+		  // upper left quadrant
+		  db_add_path(designContext);
+		  x1 = gridsnap(x0-feedline_spacing/2+w/2);  
+		  y1 = gridsnap(y0 - segment_length);
+		  db_add_point(designContext, x1, y1);
+		  x1 = x0 - segment_length;
+		  db_add_point(designContext, x1, y1);
+		  y1 = y0 + w/2;
+		  db_add_point(designContext, x1, y1);
+		  dbShape = db_end(designContext, crossover_layerID);
+
+		  // upper right quadrant
+		  db_add_path(designContext);
+		  x1 = gridsnap(x0+feedline_spacing/2-w/2);  
+		  y1 = gridsnap(y0 + segment_length);
+		  db_add_point(designContext, x1, y1);
+		  x1 = x0 + segment_length;
+		  db_add_point(designContext, x1, y1);
+		  y1 = y0 - w/2;
+		  db_add_point(designContext, x1, y1);
+		  dbShape = db_end(designContext, crossover_layerID);
+
+		  // lower right quadrant
+		  db_add_path(designContext);
+		  x1 = gridsnap(x0+feedline_spacing/2-w/2);  
+		  if (i==N) x1=x0+w; // innermost turns
+		  y1 = gridsnap(y0 - segment_length);
+		  db_add_point(designContext, x1, y1);
+		  x1 = x0 + segment_length;
+		  db_add_point(designContext, x1, y1);
+		  y1 = y0 + w/2;
+		  db_add_point(designContext, x1, y1);
+		  dbShape = db_end(designContext, crossover_layerID);
+		}
+
+
+
+	      }
+	  }   // for
+
+
+
+
+	} // if (N1!=N2)
+	
+
+
+
+
+	// Other layers that must be drawn under inductor
+	// These are in a list: other_inductor_layers_list
+	
+	// extra layers extension 
+	// extra_layer_extension variable is defined in technology.ael
+	
+	if (is_list(extra_inductor_layers_list))
+	{
+	  decl num_extra_layer = listlen(extra_inductor_layers_list);
+	  decl extra_layerNo;
+	  decl extra_string;
+	  decl extra_layerPurpose;
+	  decl extra_layerID;
+	  decl D1 = gridsnap(D/2 + extra_layer_extension);
+	  decl D2 = gridsnap(D1/(1+sqrt(2)));
+	  for ( i=0; i<num_extra_layer; i++ )
+	  {
+	    extra_string = nth(i, extra_inductor_layers_list);
+	    extra_layerNo = getLayerNum_NumPurposeString(extra_string);
+	    extra_layerPurpose = getPurposeNum_NumPurposeString (extra_string);
+	    extra_layerID = db_layerid(extra_layerNo, extra_layerPurpose);
+
+	    
+ 	    if (shape==shape_octa) {
+ 	    
+	      // OCTAGON shape
+	      
+	      // draw octagon clockwise
+	      db_add_polygon(designContext);
+	      db_add_point(designContext, x0+D2, y0-D1);
+	      db_add_point(designContext, x0+D1, y0-D2);
+	      db_add_point(designContext, x0+D1, y0+D2);
+	      db_add_point(designContext, x0+D2, y0+D1);
+	      db_add_point(designContext, x0-D2, y0+D1);
+	      db_add_point(designContext, x0-D1, y0+D2);
+	      db_add_point(designContext, x0-D1, y0-D2);
+	      db_add_point(designContext, x0-D2, y0-D1);
+
+	      decl dbShape = db_end(designContext, extra_layerID);
+	    
+	    } else {
+	      
+	      // SQUARE shape
+	      db_add_rectangle(designContext, extra_layerID, x0-D1, y0-D1, x0+D1, y0+D1);
+	    
+	    }
+	    
+	  }
+	}
+
+
+
+
+
+	// center taps
+	if (includeCenterTap) {
+
+	  decl y1,y2;
+	  
+
+	  // make sure we don't create a single via 
+	  decl size_for_two_vias =  2 * mi_get_via_size(via_layer_spiral_crossover) + mi_get_via_gap(via_layer_spiral_crossover) + 2 * mi_get_via_margin(via_layer_spiral_crossover);
+	  decl overlap_size = w;
+	  if (w < size_for_two_vias) overlap_size = (1.1*size_for_two_vias);
+	  
+	  
+	  if (NOT centertap_for_emModel) 
+	  {
+  
+	    // special case N1=1 
+	    if (N1==1) {
+	      // primary tap is opposite side, uses spiral layer
+
+	      y1 = y0+D/2 -2*w -s;
+	      y2 = y0+D/2+feed_extension;
+
+	      db_add_rectangle(designContext, spiral_layerID, x0-w/2, y1, x0+w/2, y2);
+	      db_create_pin(designContext, x0,   y0+D/2 +feed_extension, 90, spiral_layerID, 3, "3");
+	      muehlhaus_create_pin_pinpurpose (designContext, spiral_layer, x0-w/2,   y2, x0+w/2,   y2-w/2, w/4, "PTAP"); 
+	      if ((stacked) && (N2==1)) mi_add_via(designContext, via_layer_spiral_crossoverID, x0-via_size/2, y1, x0+via_size/2, y1+w);
+	      tap_primary_done = TRUE;
+	    } else { 
+	      if (N1==N2) {
+
+		// primary tap uses underpass
+		// inside
+		y1 = y0+D/2 -N*w -(N-1)*s;
+		y2 = y0+D/2+feed_extension;
+		db_add_rectangle(designContext, underpass_layerID, x0-w/2, y1, x0+w/2, y2);
+		db_add_rectangle(designContext, underpass_layerID, x0-1.5*w, y1, x0+1.5*w, y1+w);
+		db_add_rectangle(designContext, crossover_layerID, x0-1.5*w, y1, x0+1.5*w, y1+w);
+		if (NOT stacked) mi_add_via(designContext, via_layer_spiral_crossoverID, x0-1.5*w, y1, x0+1.5*w, y1+w);
+		mi_add_via(designContext, via_layer_crossover_underpassID, x0-1.5*w, y1, x0+1.5*w, y1+w);
+		
+		// outside
+		db_add_rectangle(designContext, spiral_layerID, x0-w/2, y2, x0+w/2, y2-overlap_size); 
+		db_add_rectangle(designContext, crossover_layerID, x0-w/2, y2, x0+w/2, y2-overlap_size); 
+		mi_add_via(designContext, via_layer_spiral_crossoverID, x0-w/2, y2, x0+w/2, y2-overlap_size);
+		mi_add_via(designContext, via_layer_crossover_underpassID, x0-w/2, y2, x0+w/2, y2-overlap_size);
+
+
+		if (is_even(N1)) {
+		  // north side tap is secondary
+		  db_create_pin(designContext, x0,   y0+D/2 +feed_extension, 90, spiral_layerID, 6, "6");
+		  muehlhaus_create_pin_pinpurpose (designContext, spiral_layer, x0-w/2,   y2, x0+w/2,   y2-w/2, w/4, "STAP"); 
+		  tap_secondary_done = TRUE;
+		} else {
+		  // north side tap is primary
+		  db_create_pin(designContext, x0,   y0+D/2 +feed_extension, 90, spiral_layerID, 3, "3");
+		  muehlhaus_create_pin_pinpurpose (designContext, spiral_layer, x0-w/2,   y2, x0+w/2,   y2-w/2, w/4, "PTAP"); 
+		  tap_primary_done = TRUE;
+		}
+
+		if (stacked) mi_add_via(designContext, via_layer_spiral_crossoverID, x0-via_size/2, y1, x0+via_size/2, y1+w);
+	      }
+	    }
+
+	    // special case N2=1
+	    if (N2==1) {
+	      // secondary tap is opposite side, uses spiral layer
+	      y1 = y0-D/2 +2*w +s;
+	      y2 = y0-D/2 -feed_extension;
+
+	      db_add_rectangle(designContext, spiral_layerID, x0-w/2, y1, x0+w/2, y2);
+	      db_create_pin(designContext, x0,   y2, -90, spiral_layerID, 6, "6");
+	      muehlhaus_create_pin_pinpurpose (designContext, spiral_layer, x0-w/2,   y2, x0+w/2,   y2+w/2, w/4, "STAP"); 
+	      if ((stacked) && (N1==1)) mi_add_via(designContext, via_layer_spiral_crossoverID, x0-via_size/2, y1, x0+via_size/2, y1-w);
+	      tap_secondary_done = TRUE;
+
+	    } else {
+
+	      if (N1==N2) {
+		// secondary tap uses underpass
+		y1=y0-D/2 +N*w +(N-1)*s;
+		y2 = y0-D/2 -feed_extension;
+		
+		// inside
+		db_add_rectangle(designContext, underpass_layerID, x0-w/2, y1, x0+w/2, y2);
+		db_add_rectangle(designContext, underpass_layerID, x0-1.5*w, y1, x0+1.5*w, y1-w);
+		db_add_rectangle(designContext, crossover_layerID, x0-1.5*w, y1, x0+1.5*w, y1-w);
+		if (NOT stacked) mi_add_via(designContext, via_layer_spiral_crossoverID, x0-1.5*w, y1, x0+1.5*w, y1-w);
+		mi_add_via(designContext, via_layer_crossover_underpassID, x0-1.5*w, y1, x0+1.5*w, y1-w);
+
+		// outside
+		db_add_rectangle(designContext, spiral_layerID, x0-w/2, y2, x0+w/2, y2+overlap_size); 
+		db_add_rectangle(designContext, crossover_layerID, x0-w/2, y2, x0+w/2, y2+overlap_size); 
+		mi_add_via(designContext, via_layer_spiral_crossoverID, x0-w/2, y2, x0+w/2, y2+overlap_size);
+		mi_add_via(designContext, via_layer_crossover_underpassID, x0-w/2, y2, x0+w/2, y2+overlap_size);
+
+
+		if (is_even(N1)) {
+		  // south side tap is primary
+		  db_create_pin(designContext, x0,   y0-D/2 -feed_extension, -90, underpass_layerID, 3, "3");
+		  muehlhaus_create_pin_pinpurpose (designContext, underpass_layer, x0-w/2,   y2, x0+w/2,   y2+w/2, w/4, "PTAP"); 
+		  tap_primary_done = TRUE;
+
+		} else {  
+		  // south side tap is secondary 
+		  db_create_pin(designContext, x0,   y0-D/2 -feed_extension, -90, underpass_layerID, 6, "6");
+		  muehlhaus_create_pin_pinpurpose (designContext, underpass_layer, x0-w/2,   y2, x0+w/2,   y2+w/2, w/4, "STAP"); 
+		  tap_secondary_done = TRUE;
+		}
+
+		if (stacked) mi_add_via(designContext, via_layer_spiral_crossoverID, x0-via_size/2, y1, x0+via_size/2, y1-w);
+	      }
+	    }
+
+
+	    // Check if we still have to place center taps 
+	    if ((tap_primary_done == FALSE) || (tap_secondary_done == FALSE)) {
+
+	      // ytap1 is the tap with the smaller number of turns
+	      // ytap2 is the tap with the extra turns
+
+	      decl y_primary, y_secondary;
+
+
+	      if (N1<N2) {
+		// N1 has less turns, this is ytap1
+		y_primary = ytap1;
+		y_secondary = ytap2;
+	      } else {
+		y_primary = ytap2;
+		y_secondary = ytap1;
+	      }
+
+
+	      //fputs(stderr, strcat("y_primary = ",identify_value(y_primary)));
+	      //fputs(stderr, strcat("y_secondary = ",identify_value(y_secondary)));
+	      //fputs(stderr, strcat("ytap1 = ",identify_value(ytap1)));
+	      //fputs(stderr, strcat("ytap2 = ",identify_value(ytap2)));
+
+
+	      if (tap_primary_done == FALSE) {
+		// care about the primary tap
+
+		// find the direction to go 
+		if (y_primary>y0) {
+		  // go north
+
+		  y1= y_primary - w/2;
+		  y2= y0+D/2+feed_extension;
+
+		  if ((y_primary > y_secondary) || (N2==1)) {
+		    // use underpass layer 
+
+		    // underpass
+		    db_add_rectangle(designContext, underpass_layerID, x0-w/2, y1, x0+w/2, y2);
+		    // vias and intermediate layers
+		    // inside
+		    db_add_rectangle(designContext, underpass_layerID, x0-1.5*w, y1, x0+1.5*w, y1+w);
+		    db_add_rectangle(designContext, crossover_layerID, x0-1.5*w, y1, x0+1.5*w, y1+w);
+		    if (NOT stacked) mi_add_via(designContext, via_layer_spiral_crossoverID, x0-1.5*w, y1, x0+1.5*w, y1+w);
+		    mi_add_via(designContext, via_layer_crossover_underpassID, x0-1.5*w, y1, x0+1.5*w, y1+w);
+
+		    db_create_pin(designContext, x0,   y2, -90, underpass_layerID, 3, "3");
+		    muehlhaus_create_pin_pinpurpose (designContext, underpass_layer, x0-w/2,   y2, x0+w/2,   y2-w/2, w/4, "PTAP"); 
+
+
+		  } else {
+		    // go one layer down to underpass2 layer, so that we don't run into secondary underpass
+
+		    // underpass
+		    db_add_rectangle(designContext, underpass2_layerID, x0-w/2, y1, x0+w/2, y2);
+		    // vias and intermediate layers
+		    //inside
+		    db_add_rectangle(designContext, underpass2_layerID, x0-1.5*w, y1, x0+1.5*w, y1+w);
+
+		    db_add_rectangle(designContext, crossover_layerID, x0-1.5*w, y1, x0+1.5*w, y1+w);
+		    db_add_rectangle(designContext, underpass_layerID, x0-1.5*w, y1, x0+1.5*w, y1+w);
+		    if (NOT stacked) mi_add_via(designContext, via_layer_spiral_crossoverID, x0-1.5*w, y1, x0+1.5*w, y1+w);
+		    mi_add_via(designContext, via_layer_crossover_underpassID, x0-1.5*w, y1, x0+1.5*w, y1+w);
+		    mi_add_via(designContext, via_layer_underpass_underpass2ID, x0-1.5*w, y1, x0+1.5*w, y1+w);
+
+		    db_create_pin(designContext, x0,   y2, -90, underpass2_layerID, 3, "3");
+		    muehlhaus_create_pin_pinpurpose (designContext, underpass2_layer, x0-w/2,   y2, x0+w/2,   y2-w/2, w/4, "PTAP"); 
+
+		  }
+
+		} else {
+		  // go south
+
+		  y1= y_primary + w/2;
+		  y2= y0-D/2-feed_extension;
+
+		  if ((y_primary < y_secondary) || (N2==1)) {
+		    // use underpass layer 
+
+		    // underpass
+		    db_add_rectangle(designContext, underpass_layerID, x0-w/2, y1, x0+w/2, y2);
+
+		    // vias and intermediate layers
+		    db_add_rectangle(designContext, underpass_layerID, x0-1.5*w, y1, x0+1.5*w, y1-w);
+		    db_add_rectangle(designContext, crossover_layerID, x0-1.5*w, y1, x0+1.5*w, y1-w);
+		    if (NOT stacked) mi_add_via(designContext, via_layer_spiral_crossoverID, x0-1.5*w, y1, x0+1.5*w, y1-w);
+		    mi_add_via(designContext, via_layer_crossover_underpassID, x0-1.5*w, y1, x0+1.5*w, y1-w);
+
+		    db_create_pin(designContext, x0,   y2, 90, underpass_layerID, 3, "3");
+		    muehlhaus_create_pin_pinpurpose (designContext, underpass_layer, x0-w/2,   y2, x0+w/2,   y2+w/2, w/4, "PTAP"); 
+
+
+		  } else {
+		    // go one layer down to underpass2 layer, so that we don't run into secondary underpass
+
+		    // underpass
+		    db_add_rectangle(designContext, underpass2_layerID, x0-w/2, y1, x0+w/2, y2);
+		    // vias and intermediate layers
+		    db_add_rectangle(designContext, underpass2_layerID, x0-1.5*w, y1, x0+1.5*w, y1-w);
+		    db_add_rectangle(designContext, crossover_layerID, x0-1.5*w, y1, x0+1.5*w, y1-w);
+		    db_add_rectangle(designContext, underpass_layerID, x0-1.5*w, y1, x0+1.5*w, y1-w);
+		    if (NOT stacked) mi_add_via(designContext, via_layer_spiral_crossoverID, x0-1.5*w, y1, x0+1.5*w, y1-w);
+		    mi_add_via(designContext, via_layer_crossover_underpassID, x0-1.5*w, y1, x0+1.5*w, y1-w);
+		    mi_add_via(designContext, via_layer_underpass_underpass2ID, x0-1.5*w, y1, x0+1.5*w, y1-w);
+
+		    db_create_pin(designContext, x0,   y2, 90, underpass2_layerID, 3, "3");
+		    muehlhaus_create_pin_pinpurpose (designContext, underpass2_layer, x0-w/2,   y2, x0+w/2,   y2+w/2, w/4, "PTAP"); 
+
+		  }
+
+		}
+
+	      }  // if (tap_primary_done == FALSE)  
+
+
+
+
+	      if (tap_secondary_done == FALSE) {
+		// care about the secondary tap
+
+		// find the direction to go 
+		if (y_secondary>y0) {
+		  // go north
+
+		  y1= y_secondary - w/2;
+		  y2= y0+D/2+feed_extension;
+
+		  if ((y_primary < y_secondary) || (N1==1)) {
+		    // use underpass layer 
+
+		    // underpass
+		    db_add_rectangle(designContext, underpass_layerID, x0-w/2, y1, x0+w/2, y2);
+		    // vias and intermediate layers
+		    db_add_rectangle(designContext, underpass_layerID, x0-1.5*w, y1, x0+1.5*w, y1+w);
+		    db_add_rectangle(designContext, crossover_layerID, x0-1.5*w, y1, x0+1.5*w, y1+w);
+		    if (NOT stacked) mi_add_via(designContext, via_layer_spiral_crossoverID, x0-1.5*w, y1, x0+1.5*w, y1+w);
+		    mi_add_via(designContext, via_layer_crossover_underpassID, x0-1.5*w, y1, x0+1.5*w, y1+w);
+
+		    db_create_pin(designContext, x0,   y2, -90, underpass_layerID, 6, "6");
+		    muehlhaus_create_pin_pinpurpose (designContext, underpass_layer, x0-w/2,   y2, x0+w/2,   y2-w/2, w/4, "STAP"); 
+
+
+		  } else {
+		    // go one layer down to underpass2 layer, so that we don't run into secondary underpass
+
+		    // underpass
+		    db_add_rectangle(designContext, underpass2_layerID, x0-w/2, y1, x0+w/2, y2);
+		    // vias and intermediate layers
+		    db_add_rectangle(designContext, underpass2_layerID, x0-1.5*w, y1, x0+1.5*w, y1+w);
+		    db_add_rectangle(designContext, crossover_layerID, x0-1.5*w, y1, x0+1.5*w, y1+w);
+		    db_add_rectangle(designContext, underpass_layerID, x0-1.5*w, y1, x0+1.5*w, y1+w);
+		    if (NOT stacked) mi_add_via(designContext, via_layer_spiral_crossoverID, x0-1.5*w, y1, x0+1.5*w, y1+w);
+		    mi_add_via(designContext, via_layer_crossover_underpassID, x0-1.5*w, y1, x0+1.5*w, y1+w);
+		    mi_add_via(designContext, via_layer_underpass_underpass2ID, x0-1.5*w, y1, x0+1.5*w, y1+w);
+
+		    db_create_pin(designContext, x0,   y2, -90, underpass2_layerID, 6, "6");
+		    muehlhaus_create_pin_pinpurpose (designContext, underpass2_layer, x0-w/2,   y2, x0+w/2,   y2-w/2, w/4, "STAP"); 
+
+		  }
+
+		} else {
+		  // go south
+
+		  y1= y_secondary + w/2;
+		  y2= y0-D/2-feed_extension;
+
+		  if ((y_primary > y_secondary) || (N1==1)) {
+		    // use underpass layer 
+
+		    // underpass
+		    db_add_rectangle(designContext, underpass_layerID, x0-w/2, y1, x0+w/2, y2);
+		    // vias and intermediate layers
+		    db_add_rectangle(designContext, underpass_layerID, x0-1.5*w, y1, x0+1.5*w, y1-w);
+		    db_add_rectangle(designContext, crossover_layerID, x0-1.5*w, y1, x0+1.5*w, y1-w);
+		    if (NOT stacked) mi_add_via(designContext, via_layer_spiral_crossoverID, x0-1.5*w, y1, x0+1.5*w, y1-w);
+		    mi_add_via(designContext, via_layer_crossover_underpassID, x0-1.5*w, y1, x0+1.5*w, y1-w);
+
+		    db_create_pin(designContext, x0,   y2, 90, underpass_layerID, 6, "6");
+		    muehlhaus_create_pin_pinpurpose (designContext, underpass_layer, x0-w/2,   y2, x0+w/2,   y2+w/2, w/4, "STAP"); 
+
+
+		  } else {
+		    // go one layer down to underpass2 layer, so that we don't run into secondary underpass
+
+		    // underpass
+		    db_add_rectangle(designContext, underpass2_layerID, x0-w/2, y1, x0+w/2, y2);
+		    // vias and intermediate layers
+		    db_add_rectangle(designContext, underpass2_layerID, x0-1.5*w, y1, x0+1.5*w, y1-w);
+		    db_add_rectangle(designContext, crossover_layerID, x0-1.5*w, y1, x0+1.5*w, y1-w);
+		    db_add_rectangle(designContext, underpass_layerID, x0-1.5*w, y1, x0+1.5*w, y1-w);
+		    if (NOT stacked) mi_add_via(designContext, via_layer_spiral_crossoverID, x0-1.5*w, y1, x0+1.5*w, y1-w);
+		    mi_add_via(designContext, via_layer_crossover_underpassID, x0-1.5*w, y1, x0+1.5*w, y1-w);
+		    mi_add_via(designContext, via_layer_underpass_underpass2ID, x0-1.5*w, y1, x0+1.5*w, y1-w);
+		    
+		    db_create_pin(designContext, x0,   y2, 90, underpass2_layerID, 6, "6");
+		    muehlhaus_create_pin_pinpurpose (designContext, underpass2_layer, x0-w/2,   y2, x0+w/2,   y2+w/2, w/4, "STAP"); 
+
+		  }
+		}
+	      } // if (tap_secondary_done == FALSE) 
+	    } // if ((tap_primary_done == FALSE) || (tap_secondary_done == FALSE))
+	  
+	  } else {
+	  
+	    // special case: centertap_for_emModel, pins are directly at center tap, always on same layer
+	      decl y_primary, y_secondary;
+	      
+	      if (N1==N2) {
+		// primary tap uses underpass
+		if (is_even(N1)) {
+		  y_secondary = y0 + D/2 -N*w -(N-1)*s +w/2;
+		  y_primary   = y0 - D/2 +N*w +(N-1)*s -w/2;
+		} else {
+		  y_primary = y0 + D/2 -N*w -(N-1)*s +w/2;
+		  y_secondary = y0 - D/2 +N*w +(N-1)*s -w/2;
+		}  // is_even (N1)
+	      
+	      } else {
+	        // different number of turns
+		if (N1<N2) {
+		  // N1 has less turns, this is ytap1
+		  y_primary = ytap1;
+		  y_secondary = ytap2;
+		} else {
+		  y_primary = ytap2;
+		  y_secondary = ytap1;
+		}
+	      }
+
+	      
+	      db_create_pin(designContext, x0,   y_primary, 0, spiral_layerID, 3, "3");
+	      db_create_pin(designContext, x0,   y_secondary, 0, spiral_layerID, 6, "6");
+	      
+	  
+	  } // if (NOT centertap_for_emModel) 
+	} // if (includeCenterTap) 
+
+
+	// merge everything
+ 	merge_all();
+ 	
+}
+
+// ============================== overlay 2:1 transformer ==================================
+
+defun mi_overlay_octa_6port (N1, N2, D, w, s, L1, L2)
+{
+  mi_overlay_octa (N1, N2, D, w, s, L1, L2);
+}
+
+
+defun mi_overlay_octa (N1, N2, D, w, s, L1, L2)
+{
+	// Octagon inductor
+	// Parameters:
+	// primary number of turns is fixed = 1
+	// D = outer diameter
+	// w = line width
+	// s = line spacing
+	// L1,L2 = estimated inductance, using callback function in component defintion
+
+
+	decl dbShape;
+
+	// get context of instance referencing this artwork
+	decl designContext = de_get_current_design_context();
+
+	// get mks to user units conversion factor
+	decl mks2uu = db_get_mks_to_uu_factor(designContext);
+	// fputs(stderr, strcat("Simulator units to user units conversion factor = ",identify_value(mks2uu)));
+
+	// convert to user units
+	D = gridsnap(D * mks2uu);
+	w = gridsnap(w * mks2uu);
+	s = gridsnap(s * mks2uu);
+	
+	decl N=N1;  	// total turns per layer
+	
+	// get layerID, db_layerID (layernumber [,purpose])
+	decl spiral_layerID = db_layerid(spiral_layer);
+	
+	decl underpass_layerID = db_layerid(underpass_layer);
+	decl underpass2_layerID = db_layerid(underpass2_layer);
+	decl crossover_layerID = db_layerid(crossover_layer);
+	decl via_layer_spiral_crossoverID  = db_layerid(via_layer_spiral_crossover);
+	decl via_layer_crossover_underpassID = db_layerid(via_layer_crossover_underpass);
+	decl via_layer_underpass_underpass2ID = db_layerid(via_layer_underpass_underpass2);
+	decl pgs_layerID = db_layerid(pgs_layer);
+	
+	// reference location (0,0) is at inductor center
+	decl x0 = gridsnap(D/2);
+	decl y0 = gridsnap(D/2);
+
+	// make sure we don't create a single via 
+	decl size_for_two_vias =  2 * mi_get_via_size(via_layer_spiral_crossover) + mi_get_via_gap(via_layer_spiral_crossover) + 2 * mi_get_via_margin(via_layer_spiral_crossover);
+	decl overlap_size = w;
+	if (w < size_for_two_vias) overlap_size = (1.1*size_for_two_vias);
+
+	// calculate width of crossover section
+	decl crossover_size = 3*w + s;
+	
+	// there is a minimum crossover width that must be respected
+	decl min_crossover_size = (2*s+w)*(sqrt(2)-1) + (s+w) + w;
+	if (crossover_size < min_crossover_size) crossover_size = min_crossover_size;	
+	
+	// distance from center to via array starting point
+	decl via_array_offset = crossover_size/2-w/2;
+	
+	// max calculate size for vias between spiral and underpass
+	decl Di=D - 2*N*w - 2*(N-1)*s;
+	decl inner_segment_length = gridsnap(Di/(1+sqrt(2)));
+	decl max_possible_via_length = (inner_segment_length - crossover_size + w)/2 ;
+	max_possible_via_length = max_possible_via_length - (w+s); // for secondary bridge
+	
+	// Default via array size, large to minimize via losses
+	decl via_size = overlap_size;
+		
+	// limit via array length to maximum possible value for this inner diameter;
+	if ((N>1) && (via_size>max_possible_via_length)) via_size=max_possible_via_length;
+	 
+	// Feedline spacing is based on crossover size
+	decl feedline_spacing = crossover_size; 
+	
+	// based on settings in preferences.ael, this will draw a metal frame around the inductor
+	if (draw_groundframe) mi_draw_frame(designContext,x0, y0, D);
+
+
+	// feed with ports 1/2
+
+	// feedline extension
+	decl feed_extension; 
+	if (groundframe_extend_feedline && draw_groundframe) {
+	  feed_extension = D/2*(groundframe_size_factor-1) + groundframe_oversize;	
+	  if (groundframe_extend_over_frame) feed_extension = feed_extension  + groundframe_width;
+	} else {
+  	  // Feedline extension is fixed to 5um
+	  feed_extension = 5;
+	}	
+
+	// pins/ports
+
+	// primary
+	db_add_rectangle(designContext, spiral_layerID, x0-w/2-feedline_spacing/2, y0-D/2+w, x0+w/2-feedline_spacing/2, y0-D/2-feed_extension);
+	db_create_pin(designContext, x0-feedline_spacing/2,   y0-D/2 -feed_extension, -90, spiral_layerID, 1, "1");
+	muehlhaus_create_pin_pinpurpose (designContext, spiral_layer, x0-feedline_spacing/2-w/2,   y0-D/2 -feed_extension, x0-feedline_spacing/2+w/2,   y0-D/2 -feed_extension+w/2, w/4, "PA"); 
+
+	db_add_rectangle(designContext, spiral_layerID, x0-w/2+feedline_spacing/2, y0-D/2+w, x0+w/2+feedline_spacing/2, y0-D/2-feed_extension);
+	db_create_pin(designContext, x0+feedline_spacing/2,   y0-D/2 -feed_extension, -90, spiral_layerID, 2, "2");
+	muehlhaus_create_pin_pinpurpose (designContext, spiral_layer, x0+feedline_spacing/2-w/2,   y0-D/2 -feed_extension, x0+feedline_spacing/2+w/2,   y0-D/2 -feed_extension+w/2, w/4, "PB"); 
+
+	db_add_rectangle(designContext, spiral_layerID, x0-w/2, y0-D/2+2*w+s, x0+w/2, y0-D/2-feed_extension+w/2);
+	db_create_pin(designContext, x0,   y0-D/2 -feed_extension+w/2, -90, spiral_layerID, 3, "3");
+	muehlhaus_create_pin_pinpurpose (designContext, spiral_layer, x0-w/2,   y0-D/2 -feed_extension+w, x0+w/2,   y0-D/2 -feed_extension+w/2, w/4, "PTAP"); 
+	
+
+	// secondary
+	decl underpass_offset = via_array_offset + via_size +s; 
+	
+
+	// factor to shift ports 4/5 with/without ground frame
+	decl noframe = 1;
+	if (groundframe_extend_feedline && draw_groundframe) noframe=0;
+
+	de_set_path_width(w);
+
+	db_add_path(designContext);
+	db_add_point(designContext, x0-underpass_offset-w/2,y0+D/2-2*w-s);
+	db_add_point(designContext, x0-underpass_offset-w/2,y0+D/2-w/2 + w+s);
+	db_add_point(designContext, x0,y0+D/2 -w/2 + w+s);
+	db_add_point(designContext, x0,y0+D/2 +noframe*(w+s )+ feed_extension);
+	dbShape = db_end(designContext, crossover_layerID);
+
+	// make sure we don't have a single via
+	db_add_rectangle(designContext, crossover_layerID, x0+underpass_offset, y0+D/2-2*w-s, x0+underpass_offset+w, y0+D/2+s+w);
+	db_add_rectangle(designContext, crossover_layerID, x0+underpass_offset+w-overlap_size, y0+D/2+s, x0+underpass_offset+w, y0+D/2+s+w);
+	mi_add_via(designContext, via_layer_spiral_crossoverID, x0+underpass_offset+w-overlap_size, y0+D/2+s, x0+underpass_offset+w, y0+D/2+s+w);
+	
+	db_add_path(designContext);
+	db_add_point(designContext, x0+underpass_offset+w,y0+D/2-w/2 + w+s);
+	db_add_point(designContext, x0,y0+D/2-w/2 + w+s);
+	db_add_point(designContext, x0,y0+D/2+ noframe*(w+s) + feed_extension);
+	dbShape = db_end(designContext, spiral_layerID);
+
+	db_create_pin(designContext, x0-w/4, y0+D/2 + noframe*(w+s) + feed_extension, 90, crossover_layerID, 5, "5");
+	db_create_pin(designContext, x0+w/4, y0+D/2 + noframe*(w+s)+ feed_extension, 90, spiral_layerID, 4, "4");
+
+	muehlhaus_create_pin_pinpurpose (designContext, crossover_layer, x0-w/2, y0+D/2 + noframe*(w+s) + feed_extension , x0+w/2,   y0+D/2 + noframe*(w+s) -w + feed_extension, w/4, "SA"); 
+	muehlhaus_create_pin_pinpurpose (designContext, spiral_layer, x0-w/2, y0+D/2 + noframe*(w+s) + feed_extension , x0+w/2,   y0+D/2 + noframe*(w+s) -w + feed_extension, w/4, "SB"); 
+
+			
+	// secondary center tap
+	db_create_pin(designContext, x0,   y0-D/2 -feed_extension, -90, underpass_layerID, 6, "6");
+	muehlhaus_create_pin_pinpurpose (designContext, underpass_layer, x0-w/2,   y0-D/2 -feed_extension, x0+w/2,   y0-D/2 -feed_extension+w/2, w/4, "STAP"); 
+	
+	// make sure we don't have a single via
+	mi_add_via(designContext, via_layer_crossover_underpassID, x0-overlap_size/2, y0-D/2+ w+s, x0+overlap_size/2, y0-D/2+2*w+s);
+	db_add_rectangle(designContext, underpass_layerID, x0-overlap_size/2, y0-D/2+ w+s, x0+overlap_size/2, y0-D/2+2*w+s);
+	db_add_rectangle(designContext, underpass_layerID, x0-w/2, y0-D/2 -feed_extension, x0+w/2, y0-D/2+2*w+s);
+	
+
+
+ 	// draw the spiral segments (excluding crossover) for primary 
+	de_set_path_corner(PREF_SQUARE_PATH);
+	de_set_path_width(w);
+	decl i=0;
+	decl segment_length = (D-w) / (1+sqrt(2));
+	decl x1,y1;
+ 	
+ 	
+ 	// PRIMARY, start at outer turn
+ 	for ( i=1; i<=N; i++ )
+ 	{
+     
+	    // lower left quadrant
+	    db_add_path(designContext);
+	    x1 = gridsnap(x0-feedline_spacing/2+w/2);  
+	    if (is_even(N) && (i==N)) x1=x0+w; // innermost turns
+	    y1 = gridsnap(y0 + (-D/2 + w/2 + (i-1)*(w+s)));
+	    db_add_point(designContext, x1, y1);
+	    x1 = x0 - gridsnap(segment_length/2);
+	    db_add_point(designContext, x1, y1);
+	    x1 = x1 - gridsnap(segment_length/sqrt(2));
+	    y1 = y1 + gridsnap(segment_length/sqrt(2));
+	    db_add_point(designContext, x1, y1);
+	    y1=y0+w/2;
+	    db_add_point(designContext, x1, y1);
+	    dbShape = db_end(designContext, spiral_layerID);
+
+	    // upper left quadrant
+	    db_add_path(designContext);
+	    x1 = gridsnap(x0-feedline_spacing/2+w/2);  
+	    if ((NOT is_even(N)) && (i==N)) x1=x0+w; // innermost turns
+	    y1 = gridsnap(y0 + D/2 - w/2 - (i-1)*(w+s));
+	    db_add_point(designContext, x1, y1);
+	    x1 = x0 - gridsnap(segment_length/2);
+	    db_add_point(designContext, x1, y1);
+	    x1 = x1 - gridsnap(segment_length/sqrt(2));
+	    y1 = y1 - gridsnap(segment_length/sqrt(2));
+	    db_add_point(designContext, x1, y1);
+	    y1=y0-w/2;
+	    db_add_point(designContext, x1, y1);
+	    dbShape = db_end(designContext, spiral_layerID);
+
+	    // lower right quadrant
+	    db_add_path(designContext);
+	    x1 = gridsnap(x0+feedline_spacing/2-w/2);  
+	    if (is_even(N) && (i==N)) x1=x0-w; // innermost turns
+	    y1 = gridsnap(y0 + (-D/2 + w/2 + (i-1)*(w+s)));
+	    db_add_point(designContext, x1, y1);
+	    x1 = x0 + gridsnap(segment_length/2);
+	    db_add_point(designContext, x1, y1);
+	    x1 = x1 + gridsnap(segment_length/sqrt(2));
+	    y1 = y1 + gridsnap(segment_length/sqrt(2));
+	    db_add_point(designContext, x1, y1);
+	    y1=y0+w/2;
+	    db_add_point(designContext, x1, y1);
+	    dbShape = db_end(designContext, spiral_layerID);
+
+	    // upper right quadrant
+	    db_add_path(designContext);
+	    x1 = gridsnap(x0+feedline_spacing/2-w/2);  
+	    if ((NOT is_even(N)) && (i==N)) x1=x0-w; // innermost turns
+	    y1 = gridsnap(y0 + D/2 - w/2 - (i-1)*(w+s));
+	    db_add_point(designContext, x1, y1);
+	    x1 = x0 + gridsnap(segment_length/2);
+	    db_add_point(designContext, x1, y1);
+	    x1 = x1 + gridsnap(segment_length/sqrt(2));
+	    y1 = y1 - gridsnap(segment_length/sqrt(2));
+	    db_add_point(designContext, x1, y1);
+	    y1=y0-w/2;
+	    db_add_point(designContext, x1, y1);
+	    dbShape = db_end(designContext, spiral_layerID);
+
+	    // decrease segment length for next turn
+	    segment_length = segment_length - 2 * (w+s)/(1+sqrt(2));
+	  
+	}
+	
+
+	segment_length = (D-w) / (1+sqrt(2));
+
+ 	// SECONDARY, start at outer turn
+ 	for ( i=1; i<=N; i++ )
+ 	{
+     
+	    // lower left quadrant
+	    db_add_path(designContext);
+	    x1 = gridsnap(x0+w); // connect
+	    y1 = gridsnap(y0 + (-D/2 + w/2 + (i-1)*(w+s)));
+	    db_add_point(designContext, x1, y1);
+	    x1 = x0 - gridsnap(segment_length/2);
+	    db_add_point(designContext, x1, y1);
+	    x1 = x1 - gridsnap(segment_length/sqrt(2));
+	    y1 = y1 + gridsnap(segment_length/sqrt(2));
+	    db_add_point(designContext, x1, y1);
+	    y1=y0+w/2;
+	    db_add_point(designContext, x1, y1);
+	    dbShape = db_end(designContext, crossover_layerID);
+
+	    // upper left quadrant
+	    db_add_path(designContext);
+	    x1 = gridsnap(x0-underpass_offset);  
+	    y1 = gridsnap(y0 + D/2 - w/2 - (i-1)*(w+s));
+	    db_add_point(designContext, x1, y1);
+	    x1 = x0 - gridsnap(segment_length/2);
+	    db_add_point(designContext, x1, y1);
+	    x1 = x1 - gridsnap(segment_length/sqrt(2));
+	    y1 = y1 - gridsnap(segment_length/sqrt(2));
+	    db_add_point(designContext, x1, y1);
+	    y1=y0-w/2;
+	    db_add_point(designContext, x1, y1);
+	    dbShape = db_end(designContext, crossover_layerID);
+
+	    // lower right quadrant
+	    db_add_path(designContext);
+	    x1 = gridsnap(x0-w); // connect
+	    y1 = gridsnap(y0 + (-D/2 + w/2 + (i-1)*(w+s)));
+	    db_add_point(designContext, x1, y1);
+	    x1 = x0 + gridsnap(segment_length/2);
+	    db_add_point(designContext, x1, y1);
+	    x1 = x1 + gridsnap(segment_length/sqrt(2));
+	    y1 = y1 + gridsnap(segment_length/sqrt(2));
+	    db_add_point(designContext, x1, y1);
+	    y1=y0+w/2;
+	    db_add_point(designContext, x1, y1);
+	    dbShape = db_end(designContext, crossover_layerID);
+
+	    // upper right quadrant
+	    db_add_path(designContext);
+	    x1 = gridsnap(x0+underpass_offset);  
+	    y1 = gridsnap(y0 + D/2 - w/2 - (i-1)*(w+s));
+	    db_add_point(designContext, x1, y1);
+	    x1 = x0 + gridsnap(segment_length/2);
+	    db_add_point(designContext, x1, y1);
+	    x1 = x1 + gridsnap(segment_length/sqrt(2));
+	    y1 = y1 - gridsnap(segment_length/sqrt(2));
+	    db_add_point(designContext, x1, y1);
+	    y1=y0-w/2;
+	    db_add_point(designContext, x1, y1);
+	    dbShape = db_end(designContext, crossover_layerID);
+
+	    // decrease segment length for next turn
+	    segment_length = segment_length - 2 * (w+s)/(1+sqrt(2));
+	  
+	}
+	
+
+	de_set_path_corner(PREF_SQUARE_PATH);
+	de_set_path_width(w);
+	
+	
+	// Crossovers south side
+	for ( i=2; i<N; i=i+2 )
+	{
+	  draw_horiz_crossover (x0,y0,D,w,s, i, i+1, crossover_size, via_size, 1, designContext, crossover_layerID, FALSE);
+  	  draw_horiz_crossover (x0,y0,D,w,s, i+1, i, crossover_size, via_size, 1, designContext, spiral_layerID, FALSE);
+	}
+
+	// Crossovers north side
+	for ( i=1; i<N; i=i+2 )
+	{
+	  draw_horiz_crossover (x0,y0,D,w,s, i, i+1, crossover_size, via_size, -1, designContext, crossover_layerID, FALSE);
+  	  draw_horiz_crossover (x0,y0,D,w,s, i+1, i, crossover_size, via_size, -1, designContext, spiral_layerID, FALSE);
+	}
+	
+
+
+	// Other layers that must be drawn under inductor
+	// These are in a list: other_inductor_layers_list
+	
+	// extra layers extension 
+	// extra_layer_extension variable is defined in technology.ael
+	
+	if (is_list(extra_inductor_layers_list))
+	{
+	  decl num_extra_layer = listlen(extra_inductor_layers_list);
+	  decl extra_layerNo;
+	  decl extra_string;
+	  decl extra_layerPurpose;
+	  decl extra_layerID;
+	  decl D1 = gridsnap(D/2 + extra_layer_extension);
+	  decl D2 = gridsnap(D1/(1+sqrt(2)));
+	  for ( i=0; i<num_extra_layer; i++ )
+	  {
+	    extra_string = nth(i, extra_inductor_layers_list);
+	    extra_layerNo = getLayerNum_NumPurposeString(extra_string);
+	    extra_layerPurpose = getPurposeNum_NumPurposeString (extra_string);
+	    extra_layerID = db_layerid(extra_layerNo, extra_layerPurpose);
+
+	    
+	    // OCTAGON shape
+
+	    // draw octagon clockwise
+	    db_add_polygon(designContext);
+	    db_add_point(designContext, x0+D2, y0-D1);
+	    db_add_point(designContext, x0+D1, y0-D2);
+	    db_add_point(designContext, x0+D1, y0+D2);
+	    db_add_point(designContext, x0+D2, y0+D1);
+	    db_add_point(designContext, x0+D2, y0+D1+w+s); // extra size for large feed 
+	    db_add_point(designContext, x0-D2, y0+D1+w+s);
+	    db_add_point(designContext, x0-D2, y0+D1);
+	    db_add_point(designContext, x0-D1, y0+D2);
+	    db_add_point(designContext, x0-D1, y0-D2);
+	    db_add_point(designContext, x0-D2, y0-D1);
+
+	    decl dbShape = db_end(designContext, extra_layerID);
+
+	  }
+	}
+
+
+	// merge everything
+ 	merge_all();
+ 	
+}
+
+
+// =================================== 1:1 transformer old style =============================
+
+
+defun draw_horiz_crossover2 (x0,y0,D,w,s, Na, Nb, xoffsetfactor, via_array_offset, via_size, orientation_factor, designContext, layerID)
+
+{
+
+// x0, y0 = spiral center
+// D = outer diameter
+// w = width
+// s = spacing
+// Na, Nb = outer and inner turn to connect
+// layer_ID = layer to draw on
+// via_array_offset = start of via away from center line
+// via_size = size of via starting at via_array_offset
+// orientation_factor = 1 for bottom (south) layout side, -1 for north side
+
+// drawing direction is always from left to right
+
+  decl x1, y1;
+  
+  decl xoffset = 0.5 * xoffsetfactor * (s+w)*(sqrt(2)-1);
+  decl Ndiff = (Na-Nb);
+  
+  // fputs(stderr,sprintf("xoffset:%.2f",xoffset));          
+  
+  de_set_path_width(w);
+  db_add_path(designContext);
+  x1 = gridsnap(x0 - via_array_offset-via_size);
+  y1 = gridsnap(y0 + orientation_factor*(- D/2 + 0.5*w + (Na-1)*(w+s)));
+  db_add_point(designContext, x1,y1);
+
+  
+//  x1 = x0 - gridsnap(w+s+xoffset);
+  x1 = x0 - gridsnap(mag(Ndiff)*(w+s)/2 + xoffset);
+  db_add_point(designContext, x1,y1);
+  
+  
+  x1 = x1 + gridsnap(mag(Ndiff)*(w+s));
+  y1 = y1 - orientation_factor * gridsnap(Ndiff*(w+s));
+  db_add_point(designContext, x1,y1);
+  
+  x1 = gridsnap(x0 + via_array_offset + via_size);
+  db_add_point(designContext, x1,y1);
+  
+  db_end(designContext, layerID);
+  
+  
+  // crossover vias 
+  if (layerID==db_layerid(crossover_layer)) {
+  
+    x1 = gridsnap(x0 - via_array_offset-via_size);
+    y1 = gridsnap(y0 + orientation_factor*(- D/2 + (Na-1)*(w+s)));
+    mi_add_via(designContext, db_layerid(via_layer_spiral_crossover), x1, y1, x1+via_size, y1+orientation_factor*w);
+
+    x1 = gridsnap(x0 + via_array_offset);
+    y1 = y1 - orientation_factor * gridsnap(Ndiff*(w+s));
+    mi_add_via(designContext, db_layerid(via_layer_spiral_crossover), x1, y1, x1+via_size, y1+orientation_factor*w);
+
+  }
+
+}
+
+
+
+defun draw_vert_crossover2 (x0,y0,D,w,s, Na, Nb, yoffsetfactor, crossover_size, via_size, orientation_factor, designContext, layerID)
+
+{
+
+// x0, y0 = spiral center
+// D = outer diameter
+// w = width
+// s = spacing
+// Na, Nb = outer and inner turn to connect
+// layer_ID = layer to draw on
+// via_array_offset = start of via away from center line
+// via_size = size of via starting at via_array_offset
+// orientation_factor = 1 for left layout side, -1 for right side
+
+// drawing direction is always from bottom to right
+
+  decl x1, y1;
+  
+  decl yoffset = 0.5 * yoffsetfactor * (s+w)*(sqrt(2)-1);
+  
+  de_set_path_width(w);
+  db_add_path(designContext);
+  y1 = gridsnap(y0 - crossover_size/2);
+  x1 = gridsnap(y0 + orientation_factor*(- D/2 + 0.5*w + (Na-1)*(w+s)));
+  db_add_point(designContext, x1,y1);
+
+  decl Ndiff = (Na-Nb);
+  
+  y1 = y0 - gridsnap(mag(Ndiff)*(w+s)/2 +yoffset);
+  db_add_point(designContext, x1,y1);
+  
+  y1 = y1 + gridsnap(mag(Ndiff)*(w+s));
+  x1 = x1 - orientation_factor * gridsnap(Ndiff*(w+s));
+  db_add_point(designContext, x1,y1);
+  
+  y1 = gridsnap(y0 + crossover_size/2);
+  db_add_point(designContext, x1,y1);
+  
+  db_end(designContext, layerID);
+  
+  
+  // crossover vias 
+  if (layerID==db_layerid(crossover_layer)) {
+  
+    y1 = gridsnap(y0 - crossover_size/2);
+    x1 = gridsnap(x0 + orientation_factor*(- D/2 + (Na-1)*(w+s)));
+    mi_add_via(designContext, db_layerid(via_layer_spiral_crossover), x1, y1, x1 + orientation_factor*w, y1+w);
+
+    y1 = gridsnap(y0 + crossover_size/2 );
+    x1 = gridsnap(x1 - orientation_factor * (Ndiff*(w+s)));
+    mi_add_via(designContext, db_layerid(via_layer_spiral_crossover), x1, y1, x1 + orientation_factor*w, y1-w);
+
+  }
+
+}
+
+
+
+defun mi_interleaved2_octa_4port (N1, N2, D, w, s, L1, L2)
+{
+	// Octagon inductor
+	// Parameters:
+	// N1 = primary number of turns (must be integer)
+	// N2 = secondary number of turns (must be integer)
+	// D = outer diameter
+	// w = line width
+	// s = line spacing
+	// L1,L2 = estimated inductance, using callback function in component definition
+
+
+	decl stacked = FALSE;
+	decl includeCenterTap = FALSE;
+	
+	decl dbShape;
+
+
+	// get context of instance referencing this artwork
+	decl designContext = de_get_current_design_context();
+
+	// get mks to user units conversion factor
+	decl mks2uu = db_get_mks_to_uu_factor(designContext);
+	// fputs(stderr, strcat("Simulator units to user units conversion factor = ",identify_value(mks2uu)));
+
+	// convert to user units
+	D = gridsnap(D * mks2uu);
+	w = gridsnap(w * mks2uu);
+	s = gridsnap(s * mks2uu);
+	
+	decl N = N1+N2; // total number of turns primary + secondary
+
+
+	// get layerID, db_layerID (layernumber [,purpose])
+	decl spiral_layerID = db_layerid(spiral_layer);
+	
+	decl underpass_layerID = db_layerid(underpass_layer);
+	decl underpass2_layerID = db_layerid(underpass2_layer);
+	decl crossover_layerID = db_layerid(crossover_layer);
+	decl via_layer_spiral_crossoverID  = db_layerid(via_layer_spiral_crossover);
+	decl via_layer_crossover_underpassID = db_layerid(via_layer_crossover_underpass);
+	decl via_layer_underpass_underpass2ID = db_layerid(via_layer_underpass_underpass2);
+	decl pgs_layerID = db_layerid(pgs_layer);
+	
+
+	// reference location (0,0) is at inductor center
+	decl x0 = gridsnap(D/2);
+	decl y0 = gridsnap(D/2);
+
+	// calculate width of crossover section
+	decl crossover_size = 4*w + 3*s;
+
+	// there is a minimum crossover width that must be respected
+	decl min_crossover_size = (2*s+w)*(sqrt(2)-1) + 2*s +2*w ;   // this is for single crossover
+	fputs(stderr,strcat("crossover_size = ",identify_value(crossover_size))); 
+	fputs(stderr,strcat("min_crossover_size = ",identify_value(min_crossover_size))); 
+	
+	if (crossover_size < min_crossover_size) crossover_size = min_crossover_size;	
+	fputs(stderr,strcat("final crossover_size = ",identify_value(crossover_size))); 
+
+	// distance from center to via array starting point
+	decl via_array_offset = crossover_size/2-w/2;
+	
+	// calculate max size for vias between spiral and underpass
+	decl Di=D - 2*N*w - 2*(N-1)*s;
+	decl inner_segment_length = gridsnap(Di/(1+sqrt(2)));
+	
+	decl max_possible_via_length = (inner_segment_length - crossover_size -s -w)/2 ;
+	//fputs(stderr,strcat("inner_segment_length = ",identify_value(inner_segment_length))); 
+	//fputs(stderr,strcat("crossover_size = ",identify_value(crossover_size))); 
+	if ((N1==1)&&(N2==1)) 	max_possible_via_length = (inner_segment_length - crossover_size + w)/2 ;// special case N1=N2=1 with side crossover
+	//fputs(stderr,strcat("max_possible_via_length = ",identify_value(max_possible_via_length))); 
+	
+
+	// fputs(stderr,strcat("max_via_length = ",identify_value(max_via_length))); 
+	
+	// Default via array size 
+	decl via_size = 1.5*w;
+		
+	// limit via array length to maximum possible value for this inner diameter;
+	if (via_size>max_possible_via_length) via_size=max_possible_via_length;
+
+	// check size of inner underpass secondary
+	decl required_inner_length = 2*(via_array_offset+ via_size + s + w);
+	decl optimum_inner_length  = 2*(via_array_offset+ via_size + s + w*underpass_width_factor);
+	//fputs(stderr,strcat("required_inner_length = ",identify_value(required_inner_length))); 
+	
+	// If we have enough room, underpass width is multiple of line width 
+	decl underpass_width = w;  // minimum if we need to safe width
+        if (optimum_inner_length < inner_segment_length) underpass_width= w*underpass_width_factor;
+        	
+	// make sure underpass is not wider than maximum metal width
+	if (underpass_width >max_underpass_width) underpass_width=max_underpass_width;
+
+	// Feedline spacing is based on crossover size
+	decl feedline_spacing = crossover_size; 
+
+
+	// based on settings in preferences.ael, this will draw a metal frame around the inductor
+	if (draw_groundframe) mi_draw_frame(designContext,x0, y0, D);
+	
+	// except N1=N2=1 
+	if ((N1==1) && (N2==1)) feedline_spacing = 2*w;
+	
+	// feed with ports 1/2
+
+	// Feedline extension is fixed to 5um
+	decl feed_extension = 5;
+
+	// pins/ports
+	if (is_even(N2)) {
+	
+	  // primary
+	  decl x1 = gridsnap(x0-via_array_offset-via_size-s);
+	  decl y1 = gridsnap(y0 + D/2 - (N-1)*w - (N-2)*s);
+	  db_add_rectangle(designContext, crossover_layerID, x1,y1, x1-underpass_width, y0+D/2+feed_extension);
+	  mi_add_via(designContext, db_layerid(via_layer_spiral_crossover), x1, y1, x1-underpass_width, y1+w);
+	  db_create_pin(designContext, x1-underpass_width/2,   y0+D/2+feed_extension, 90, crossover_layerID, 1, "1");
+	  muehlhaus_create_pin_pinpurpose (designContext, crossover_layer, x1,  y0+D/2 +feed_extension,  x1-underpass_width,   y0+D/2 +feed_extension-w/2, w/4, "PA"); 
+	  
+	  decl x1 = gridsnap(x0+via_array_offset+via_size+s);
+	  db_add_rectangle(designContext, crossover_layerID, x1,y1, x1+underpass_width, y0+D/2+feed_extension);
+	  mi_add_via(designContext, db_layerid(via_layer_spiral_crossover), x1, y1, x1+underpass_width, y1+w);
+	  db_create_pin(designContext, x1+underpass_width/2,   y0+D/2+feed_extension, 90, crossover_layerID, 2, "2");
+	  muehlhaus_create_pin_pinpurpose (designContext, crossover_layer, x1,  y0+D/2 +feed_extension,  x1+underpass_width,   y0+D/2 +feed_extension-w/2, w/4, "PB"); 
+
+
+	  // secondary
+	  decl x1 = gridsnap(x0-via_array_offset-via_size-s);
+	  decl y1 = gridsnap(y0 - D/2 +2*w +s);
+	  db_add_rectangle(designContext, crossover_layerID, x1,y1, x1-underpass_width, y0-D/2-feed_extension);
+	  mi_add_via(designContext, db_layerid(via_layer_spiral_crossover), x1, y1, x1-underpass_width, y1-w);
+	  db_create_pin(designContext, x1-underpass_width/2,   y0-D/2 -feed_extension, -90, crossover_layerID, 3, "3");
+	  muehlhaus_create_pin_pinpurpose (designContext, crossover_layer, x1,   y0-D/2 -feed_extension,  x1+underpass_width,   y0-D/2 -feed_extension+w/2, w/4, "SA"); 
+
+	  decl x1 = gridsnap(x0+via_array_offset+via_size+s);
+	  db_add_rectangle(designContext, crossover_layerID, x1,y1, x1+underpass_width, y0-D/2-feed_extension);
+	  mi_add_via(designContext, db_layerid(via_layer_spiral_crossover), x1, y1, x1+underpass_width, y1-w);
+	  db_create_pin(designContext, x1+underpass_width/2,   y0-D/2 -feed_extension, -90, crossover_layerID, 4, "4");
+	  muehlhaus_create_pin_pinpurpose (designContext, crossover_layer, x1,   y0-D/2 -feed_extension,  x1+underpass_width,   y0-D/2 -feed_extension+w/2, w/4, "SB"); 
+
+	
+	} else {
+
+	  // primary
+	  db_add_rectangle(designContext, spiral_layerID, x0-w/2-feedline_spacing/2, y0-D/2+w, x0+w/2-feedline_spacing/2, y0-D/2-feed_extension);
+	  db_create_pin(designContext, x0-feedline_spacing/2,   y0-D/2 -feed_extension, -90, spiral_layerID, 1, "1");
+	  muehlhaus_create_pin_pinpurpose (designContext, spiral_layer, x0-feedline_spacing/2-w/2,   y0-D/2 -feed_extension, x0-feedline_spacing/2+w/2,   y0-D/2 -feed_extension+w/2, w/4, "PA"); 
+
+	  db_add_rectangle(designContext, spiral_layerID, x0-w/2+feedline_spacing/2, y0-D/2+w, x0+w/2+feedline_spacing/2, y0-D/2-feed_extension);
+	  db_create_pin(designContext, x0+feedline_spacing/2,   y0-D/2 -feed_extension, -90, spiral_layerID, 2, "2");
+	  muehlhaus_create_pin_pinpurpose (designContext, spiral_layer, x0+feedline_spacing/2-w/2,   y0-D/2 -feed_extension, x0+feedline_spacing/2+w/2,   y0-D/2 -feed_extension+w/2, w/4, "PB"); 
+	  
+	  // secondary
+	  
+	  if (N2>1) {
+	  
+	    decl x1 = gridsnap(x0-via_array_offset-via_size-s);
+	    decl y1 = gridsnap(y0 + D/2 -N*w -(N-1)*s);
+	    db_add_rectangle(designContext, crossover_layerID, x1, y1, x1-underpass_width, y0+D/2+feed_extension);
+	    mi_add_via(designContext, db_layerid(via_layer_spiral_crossover), x1, y1, x1-underpass_width, y1+w);
+	    db_create_pin(designContext, x1-underpass_width/2,   y0+D/2 +feed_extension, 90, crossover_layerID, 3, "3");
+	    muehlhaus_create_pin_pinpurpose (designContext, crossover_layer, x1, y0+D/2+feed_extension, x1-underpass_width, y0+D/2+feed_extension-w/2, w/4, "SA"); 
+
+
+	    decl x1 = gridsnap(x0+via_array_offset+via_size+s);
+	    db_add_rectangle(designContext, crossover_layerID, x1, y1, x1+underpass_width, y0+D/2+feed_extension);
+	    mi_add_via(designContext, db_layerid(via_layer_spiral_crossover), x1, y1, x1+underpass_width, y1+w);
+	    db_create_pin(designContext, x1+underpass_width/2,   y0+D/2 +feed_extension, 90, crossover_layerID, 4, "4");
+	    muehlhaus_create_pin_pinpurpose (designContext, crossover_layer, x1, y0+D/2+feed_extension, x1+underpass_width, y0+D/2+feed_extension-w/2, w/4, "SB"); 
+	  
+	  } else {
+	  
+	    // special case N1=N2=1 with side crossover, where the secondary feed is at outside turn also
+	    db_add_rectangle(designContext, spiral_layerID, x0-w/2-feedline_spacing/2, y0+D/2-w, x0+w/2-feedline_spacing/2, y0+D/2+feed_extension);
+	    db_create_pin(designContext, x0-feedline_spacing/2,   y0+D/2 +feed_extension, 90, spiral_layerID, 3, "3");
+	    muehlhaus_create_pin_pinpurpose (designContext, spiral_layer, x0-feedline_spacing/2-w/2,   y0-D/2 -feed_extension, x0-feedline_spacing/2+w/2,   y0-D/2 -feed_extension+w/2, w/4, "SA"); 
+
+	    db_add_rectangle(designContext, spiral_layerID, x0-w/2+feedline_spacing/2, y0+D/2-w, x0+w/2+feedline_spacing/2, y0+D/2+feed_extension);
+	    db_create_pin(designContext, x0+feedline_spacing/2,   y0+D/2 +feed_extension, 90, spiral_layerID, 4, "4");
+	    muehlhaus_create_pin_pinpurpose (designContext, spiral_layer, x0+feedline_spacing/2-w/2,   y0-D/2 -feed_extension, x0+feedline_spacing/2+w/2,   y0-D/2 -feed_extension+w/2, w/4, "SB"); 
+	  
+	  }
+	  
+	  
+ 	}
+
+
+	
+ 	// draw the spiral segments (excluding crossover) for primary 
+	de_set_path_corner(PREF_SQUARE_PATH);
+	de_set_path_width(w);
+	decl i=0;
+	decl segment_length = (D-w) / (1+sqrt(2));
+	decl x1,y1;
+ 	
+ 	
+ 	// start at outer turn
+ 	for ( i=1; i<=N; i++ )
+ 	{
+
+	      // left side
+	      
+	      // lower left quadrant
+	      db_add_path(designContext);
+	      x1 = gridsnap(x0-crossover_size/2+w/2);
+	      
+	      if ((N1==1) && (i==1)) x1 = gridsnap(x0-feedline_spacing/2);  // special case N1=N2=1
+	      if (is_even(N2) && (i==2)) x1=x1 - via_size - s; // special case for inner secondary 
+	      
+	      y1 = gridsnap(y0 + (-D/2 + w/2 + (i-1)*(w+s)));
+	      db_add_point(designContext, x1, y1);
+	      x1 = x0 - gridsnap(segment_length/2);
+	      db_add_point(designContext, x1, y1);
+	      x1 = x1 - gridsnap(segment_length/sqrt(2));
+	      y1 = y1 + gridsnap(segment_length/sqrt(2));
+	      db_add_point(designContext, x1, y1);
+	      y1 = y1 + gridsnap(segment_length/2+w); // half segment and a little bit
+	      
+	      if ((N1==1) && (N2==1)) y1=y0-crossover_size/2 + w;
+	      db_add_point(designContext, x1, y1);
+	      dbShape = db_end(designContext, spiral_layerID);
+
+	      // upper left quadrant
+	      db_add_path(designContext);
+	      x1 = gridsnap(x0-crossover_size/2+w/2);
+	      
+	      if (NOT is_even(N2) && (i==N)) x1=x1 - via_size - s; // special case for inner secondary 
+	      if (is_even(N2) && (i==N-1)) x1=x1 - via_size - s; // special case for inner primary 
+	      if ((N2==1) && (i==2)) x1 = gridsnap(x0+w/2);  // special case N1=N2=1
+	      if ((N2==1) && (i==1)) x1 = gridsnap(x0-feedline_spacing/2);  // special case N1=N2=1
+	      
+	      y1 = gridsnap(y0 + D/2 - w/2 - (i-1)*(w+s));
+	      db_add_point(designContext, x1, y1);
+	      x1 = x0 - gridsnap(segment_length/2);
+	      db_add_point(designContext, x1, y1);
+	      x1 = x1 - gridsnap(segment_length/sqrt(2));
+	      y1 = y1 - gridsnap(segment_length/sqrt(2));
+	      db_add_point(designContext, x1, y1);
+	      y1 = y1 - gridsnap(segment_length/2+w); // half segment and a little bit
+	      if ((N1==1) && (N2==1)) y1=y0+crossover_size/2 - w;
+	      db_add_point(designContext, x1, y1);
+	      dbShape = db_end(designContext, spiral_layerID);
+
+
+	      // right side
+	      
+	      // lower right quadrant
+	      db_add_path(designContext);
+	      x1 = gridsnap(x0+crossover_size/2-w/2);
+	      
+	      if ((N1==1) && (i==1)) x1 = gridsnap(x0+feedline_spacing/2);  // special case N1=N2=1
+	      if (is_even(N2) && (i==2)) x1=x1 + via_size + s; // special case for inner secondary 
+	      
+	      y1 = gridsnap(y0 + (-D/2 + w/2 + (i-1)*(w+s)));
+	      db_add_point(designContext, x1, y1);
+	      x1 = x0 + gridsnap(segment_length/2);
+	      db_add_point(designContext, x1, y1);
+	      x1 = x1 + gridsnap(segment_length/sqrt(2));
+	      y1 = y1 + gridsnap(segment_length/sqrt(2));
+	      db_add_point(designContext, x1, y1);
+	      y1 = y1 + gridsnap(segment_length/2 + w); // half segment and a little bit
+	      if ((N1==1) && (N2==1)) y1=y0-crossover_size/2 + w;
+	      db_add_point(designContext, x1, y1);
+	      dbShape = db_end(designContext, spiral_layerID);
+
+	      // upper right quadrant
+	      db_add_path(designContext);
+	      x1 = gridsnap(x0+crossover_size/2-w/2);
+	      
+	      if (NOT is_even(N2) && (i==N)) x1=x1 + via_size + s; // special case for inner secondary 
+	      if (is_even(N2) && (i==N-1)) x1=x1 + via_size + s; // special case for inner secondary 
+	      if ((N2==1) && (i==2)) x1 = gridsnap(x0-w/2);  // special case N1=N2=1
+	      if ((N2==1) && (i==1)) x1 = gridsnap(x0+feedline_spacing/2);  // special case N1=N2=1
+
+	      y1 = gridsnap(y0 + D/2 - w/2 - (i-1)*(w+s));
+	      db_add_point(designContext, x1, y1);
+	      x1 = x0 + gridsnap(segment_length/2);
+	      db_add_point(designContext, x1, y1);
+	      x1 = x1 + gridsnap(segment_length/sqrt(2));
+	      y1 = y1 - gridsnap(segment_length/sqrt(2));
+	      db_add_point(designContext, x1, y1);
+	      y1 = y1 - gridsnap(segment_length/2+w); // half segment and a little bit
+	      if ((N1==1) && (N2==1)) y1=y0+crossover_size/2 - w;
+	      db_add_point(designContext, x1, y1);
+	      dbShape = db_end(designContext, spiral_layerID);
+
+	      // decrease segment length for next turn
+	      segment_length = segment_length - 2 * (w+s)/(1+sqrt(2));
+	  
+	}
+	
+
+
+	de_set_path_corner(PREF_SQUARE_PATH);
+	de_set_path_width(w);
+	
+	
+	// Crossovers south side
+	decl xoffset;
+	
+	if (NOT (is_even(N1))) {
+	  if (N>4) {
+	    for ( i=3; i<=N; i++ )
+	    {
+
+	      if (is_even(i)) xoffset=1; else xoffset=-1;
+	      if (is_even(int((i+1)/2))) {
+		draw_horiz_crossover2 (x0,y0,D,w,s, i, i+2, xoffset, via_array_offset, via_size, 1, designContext, crossover_layerID);
+	      } else {
+		draw_horiz_crossover2 (x0,y0,D,w,s, i, i-2, -xoffset, via_array_offset, via_size, 1, designContext, spiral_layerID);
+	      }
+	    }
+	  }
+	} else {
+	  if (N>=4) {
+	  
+	    draw_horiz_crossover2 (x0,y0,D,w,s, 1, 3, 0, via_array_offset, via_size, 1, designContext, crossover_layerID);
+	    draw_horiz_crossover2 (x0,y0,D,w,s, 3, 1, 0, via_array_offset, via_size, 1, designContext, spiral_layerID);
+	  
+	    for ( i=4; i<N; i++ )
+	    {
+	      if (is_even(i)) xoffset=-1; else xoffset=1;
+	      if (is_even(int((i)/2))) {
+		draw_horiz_crossover2 (x0,y0,D,w,s, i, i+2, xoffset, via_array_offset, via_size, 1, designContext, crossover_layerID);
+	      } else {
+		draw_horiz_crossover2 (x0,y0,D,w,s, i, i-2, -xoffset, via_array_offset, via_size, 1, designContext, spiral_layerID);
+	      }
+	    }
+	  }
+	}
+	
+
+	
+	// Crossovers north side
+	if (NOT (is_even(N1))) {
+	  if (N>4) {
+	    for ( i=1; i<=N-2; i++ )
+	    {
+
+	      if (is_even(i)) xoffset=-1; else xoffset=1;
+
+	      if (is_even(int((i+1)/2))) {
+		draw_horiz_crossover2 (x0,y0,D,w,s, i, i-2, xoffset, via_array_offset, via_size, -1, designContext, crossover_layerID);
+	      } else {
+		draw_horiz_crossover2 (x0,y0,D,w,s, i, i+2, -xoffset, via_array_offset, via_size, -1, designContext, spiral_layerID);
+	      }
+	    }
+	  }
+	} else {
+
+	    draw_horiz_crossover2 (x0,y0,D,w,s, N, N-2, 0, via_array_offset, via_size, -1, designContext, crossover_layerID);
+	    draw_horiz_crossover2 (x0,y0,D,w,s, N-2, N, 0, via_array_offset, via_size, -1, designContext, spiral_layerID);
+
+
+	    for ( i=2; i<=N-3; i++ )
+	    {
+
+	      if (is_even(i)) xoffset=1; else xoffset=-1;
+
+	      if (is_even(int((i)/2))) {
+		draw_horiz_crossover2 (x0,y0,D,w,s, i, i-2, xoffset, via_array_offset, via_size, -1, designContext, crossover_layerID);
+	      } else {
+		draw_horiz_crossover2 (x0,y0,D,w,s, i, i+2, -xoffset, via_array_offset, via_size, -1, designContext, spiral_layerID);
+	      }
+	    }
+	
+	}
+	
+	
+	// special case crossover for N1=1,N2=1
+	if ((N1==1) && (N2==1)) {
+	  draw_vert_crossover2 (x0,y0,D,w,s, 1, 2, 0, crossover_size, via_size, 1, designContext, crossover_layerID);
+	  draw_vert_crossover2 (x0,y0,D,w,s, 1, 2, 0, crossover_size, via_size, -1, designContext, crossover_layerID);
+	  draw_vert_crossover2 (x0,y0,D,w,s, 2, 1, 0, crossover_size, via_size, 1, designContext, spiral_layerID);
+	  draw_vert_crossover2 (x0,y0,D,w,s, 2, 1, 0, crossover_size, via_size, -1, designContext, spiral_layerID);
+	}
+	
+
+	// one straight segment at inner turn of primary
+	if (is_even(N1))
+	{
+	  // even number of turns, N=2,4,6,..
+	  db_add_path(designContext);
+	  x1 = gridsnap(x0-crossover_size/2);
+	  y1 = gridsnap(y0 + D/2 - w/2);
+	  db_add_point(designContext, x1,y1);
+	  x1 = gridsnap(x0+crossover_size/2);
+	  db_add_point(designContext, x1,y1);
+	  decl dbShape = db_end(designContext, spiral_layerID);
+
+	} else	{
+	  // odd number of turns, N=1,3,5,..
+	  if (N1>1) {
+	    db_add_path(designContext);
+	    x1 = gridsnap(x0-crossover_size/2);
+	    y1 = gridsnap(y0 + D/2 - (N1-1)*2*(w+s) -w/2);
+	    db_add_point(designContext, x1,y1);
+	    x1 = gridsnap(x0+crossover_size/2);
+	    db_add_point(designContext, x1,y1);
+	    decl dbShape = db_end(designContext, spiral_layerID);
+	  }
+	}
+	
+	
+	if (is_even(N2))
+	{
+	  
+	  // even number of turns, N=2,4,6,..
+	  db_add_path(designContext);
+	  x1 = gridsnap(x0-crossover_size/2);
+	  y1 = gridsnap(y0 - D/2 + (N2-1)*2*(w+s) +w +s +w/2);
+	  db_add_point(designContext, x1,y1);
+	  x1 = gridsnap(x0+crossover_size/2);
+	  db_add_point(designContext, x1,y1);
+	  decl dbShape = db_end(designContext, spiral_layerID);
+	
+	} else {
+
+	  // odd number of turns, N=1,3,5,..
+	  db_add_path(designContext);
+	  x1 = gridsnap(x0-crossover_size/2);
+	  y1 = gridsnap(y0 - D/2 + w+s + w/2);
+	  db_add_point(designContext, x1,y1);
+	  x1 = gridsnap(x0+crossover_size/2);
+	  db_add_point(designContext, x1,y1);
+	  decl dbShape = db_end(designContext, spiral_layerID);
+	
+	}  
+
+
+
+	// Other layers that must be drawn under inductor
+	// These are in a list: other_inductor_layers_list
+	
+	// extra layers extension 
+	// extra_layer_extension variable is defined in technology.ael
+	
+	if (is_list(extra_inductor_layers_list))
+	{
+	  decl num_extra_layer = listlen(extra_inductor_layers_list);
+	  decl extra_layerNo;
+	  decl extra_string;
+	  decl extra_layerPurpose;
+	  decl extra_layerID;
+	  decl D1 = gridsnap(D/2 + extra_layer_extension);
+	  decl D2 = gridsnap(D1/(1+sqrt(2)));
+	  for ( i=0; i<num_extra_layer; i++ )
+	  {
+	    extra_string = nth(i, extra_inductor_layers_list);
+	    extra_layerNo = getLayerNum_NumPurposeString(extra_string);
+	    extra_layerPurpose = getPurposeNum_NumPurposeString (extra_string);
+	    extra_layerID = db_layerid(extra_layerNo, extra_layerPurpose);
+
+	    
+	    // OCTAGON shape
+
+	    // draw octagon clockwise
+	    db_add_polygon(designContext);
+	    db_add_point(designContext, x0+D2, y0-D1);
+	    db_add_point(designContext, x0+D1, y0-D2);
+	    db_add_point(designContext, x0+D1, y0+D2);
+	    db_add_point(designContext, x0+D2, y0+D1);
+	    db_add_point(designContext, x0-D2, y0+D1);
+	    db_add_point(designContext, x0-D1, y0+D2);
+	    db_add_point(designContext, x0-D1, y0-D2);
+	    db_add_point(designContext, x0-D2, y0-D1);
+
+	    dbShape = db_end(designContext, extra_layerID);
+	    
+	  }
+	}
+
+
+	// merge everything
+ 	merge_all();
+ 	
+}
+
+
+
+// ================== round single turn inductor =========================
+
+
+defun mi_round_singleturn (N, D, w, s, L, includeCenterTap, stacked)
+{
+	// round single turn inductor 
+	// Parameters:
+	// N is pro forma only, to keep the interface consistent. Number of turns is FIXED to N=1.
+	// D = outer diameter
+	// w = line width
+	// s = line spacing (used for feedline separation)
+	// L = output of estimated (caluclated) inductance, using callback function in component definition
+	// includeCenterTap = TRUE|FALSE: boolean
+	// stacked = TRUE|FALSE:  two conductors stacked for coil?
+
+
+	// get context of instance referencing this artwork
+	decl designContext = de_get_current_design_context();
+	// fputs(stderr, strcat("designContext = ", identify_value(designContext)));
+
+	// get mks to user units conversion factor
+	decl mks2uu = db_get_mks_to_uu_factor(designContext);
+	// fputs(stderr, strcat("Simulator units to user units conversion factor = ",identify_value(mks2uu)));
+
+	// convert to user units
+	D = gridsnap(D * mks2uu);
+	w = gridsnap(w * mks2uu);
+	s = gridsnap(s * mks2uu);
+
+
+	// get layerID, db_layerID (layernumber [,purpose])
+	decl spiral_layerID = db_layerid(spiral_layer);
+	decl crossover_layerID = db_layerid(crossover_layer);
+	decl underpass_layerID = db_layerid(underpass_layer);
+	decl underpass2_layerID = db_layerid(underpass2_layer);
+	decl via_layer_spiral_crossoverID  = db_layerid(via_layer_spiral_crossover);
+	decl via_layer_crossover_underpassID = db_layerid(via_layer_crossover_underpass);
+	decl via_layer_underpass_underpass2ID = db_layerid(via_layer_underpass_underpass2);
+	
+	// reference location (0,0) is at inductor center
+	decl x0 = gridsnap(D/2);
+	decl y0 = gridsnap(D/2);
+
+	// read from preference file
+	decl wfeed = gridsnap(pH_single_feedline_width); 
+
+
+	//fputs(stderr, strcat("N = ",identify_value(N)));
+	//fputs(stderr, strcat("w = ",identify_value(w)));
+	//fputs(stderr, strcat("s = ",identify_value(s)));
+	//fputs(stderr, strcat("D = ",identify_value(D)));
+	//fputs(stderr, strcat("wfeed = ",identify_value(wfeed)));
+
+	// based on settings in preferences.ael, this will draw a metal frame around the inductor
+	if (draw_groundframe) mi_draw_frame(designContext,x0, y0, D);
+
+	// feedline spacing, defined between the middle (!) of the feedlines
+	decl feedline_spacing = s + wfeed;
+	decl Dx = D + feedline_spacing;  // Size in x direction, due to feedline spacing
+	
+	// ==== feed with ports 1/2 ==
+		
+
+	// Feedline extension for this special layout
+
+	decl feed_extension; 
+	if (groundframe_extend_feedline && draw_groundframe) {
+	  feed_extension = D/2*(groundframe_size_factor-1) + groundframe_oversize;	
+	  if (groundframe_extend_over_frame) feed_extension = feed_extension  + groundframe_width;
+	} else {
+  	  // Feedline extension is fixed to 5um
+	  feed_extension = 5;
+	}	
+
+	db_add_rectangle(designContext, spiral_layerID, x0-wfeed/2-feedline_spacing/2, y0-D/2+w, x0+wfeed/2-feedline_spacing/2, y0-D/2-feed_extension);
+	db_add_rectangle(designContext, spiral_layerID, x0-wfeed/2+feedline_spacing/2, y0-D/2+w, x0+wfeed/2+feedline_spacing/2, y0-D/2-feed_extension);
+	
+	// create pins later (below) after copying layer contents
+
+	// create area pin with pin purpose
+  	muehlhaus_create_pin_pinpurpose (designContext, spiral_layer, x0-feedline_spacing/2-wfeed/2,   y0-D/2 -feed_extension, x0-feedline_spacing/2+wfeed/2,   y0-D/2 -feed_extension+wfeed/2, w/4, "LA"); 
+  	muehlhaus_create_pin_pinpurpose (designContext, spiral_layer, x0+feedline_spacing/2-wfeed/2,   y0-D/2 -feed_extension, x0+feedline_spacing/2+wfeed/2,   y0-D/2 -feed_extension+wfeed/2, w/4, "LB"); 
+  	
+  	
+	// nice taper from feedline to spiral
+	db_add_polygon(designContext);
+	db_add_point(designContext, x0-s/2, y0-D/2-feed_extension);
+	db_add_point(designContext, x0-s/2-wfeed, y0-D/2-feed_extension);
+	db_add_point(designContext, x0-s/2-wfeed-w/2, y0-D/2+w/2);
+	db_add_point(designContext, x0-s/2, y0-D/2+w/2);
+	db_add_point(designContext, x0-s/2, y0-D/2-feed_extension);
+	decl dbShape = db_end(designContext, spiral_layerID);
+  	
+	db_add_polygon(designContext);
+	db_add_point(designContext, x0+s/2, y0-D/2-feed_extension);
+	db_add_point(designContext, x0+s/2+wfeed, y0-D/2-feed_extension);
+	db_add_point(designContext, x0+s/2+wfeed+w/2, y0-D/2+w/2);
+	db_add_point(designContext, x0+s/2, y0-D/2+w/2);
+	db_add_point(designContext, x0+s/2, y0-D/2-feed_extension);
+	decl dbShape = db_end(designContext, spiral_layerID);
+
+
+	de_set_path_corner(PREF_SQUARE_PATH);
+	de_set_path_width(w);
+	
+	decl ang=0;
+	decl pi=3.14159265;
+	decl x1,y1=0;
+	
+	db_add_path(designContext);
+
+	db_add_point(designContext, x0-s/2, 	y0-D/2 +w/2); 	
+	db_add_point(designContext, x0-feedline_spacing/2, y0-D/2 +w/2); 	// left arc starts here
+
+	for ( ang=-pi/2; ang<=pi/2; ang=ang + pi/32 )
+	{
+	  x1 = (x0-feedline_spacing/2) - (D/2-w/2)*cos(ang);
+	  y1 = y0 + (D/2-w/2)*sin(ang); 
+	  db_add_point(designContext, x1, y1); 	
+	}
+	
+	db_add_point(designContext, x0-feedline_spacing/2, y0+D/2 -w/2); 	// left arc ends here
+	db_add_point(designContext, x0+feedline_spacing/2, y0+D/2 -w/2); 	// straight segment in the middle
+
+
+	for ( ang=-pi/2; ang<=pi/2; ang=ang + pi/32 )
+	{
+	  x1 = (x0+feedline_spacing/2) + (D/2-w/2)*cos(ang);
+	  y1 = y0 - (D/2-w/2)*sin(ang); 
+	  db_add_point(designContext, x1, y1); 	
+	}
+
+	db_add_point(designContext, x0+feedline_spacing/2, y0-D/2 +w/2);
+	db_add_point(designContext, x0+s/2, y0-D/2 +w/2); 	
+
+	decl dbShape = db_end(designContext, spiral_layerID);
+
+
+	if (includeCenterTap)
+	{
+	  // outer pad 
+	  db_add_rectangle(designContext, spiral_layerID, x0-wfeed/2, y0+D/2-w, x0+wfeed/2, y0+D/2+feed_extension);
+	  
+
+	  // create area pin with pin purpose
+	  muehlhaus_create_pin_pinpurpose (designContext, spiral_layer, x0-wfeed/2, y0 + D/2 + feed_extension - wfeed/2, x0+wfeed/2, y0 + D/2 + feed_extension, w/4, "LC"); 
+
+	}  // if (includeCenterTap)
+
+
+
+ 	if (stacked) {
+	  mi_add_via(designContext, via_layer_spiral_crossoverID, x0-wfeed/2-feedline_spacing/2, y0-D/2+w, x0+wfeed/2-feedline_spacing/2, y0-D/2-feed_extension);
+	  mi_add_via(designContext, via_layer_spiral_crossoverID, x0-wfeed/2+feedline_spacing/2, y0-D/2+w, x0+wfeed/2+feedline_spacing/2, y0-D/2-feed_extension);
+	  mi_add_via(designContext, via_layer_spiral_crossoverID, x0-wfeed/2-s/2, y0+D/2-w, x0+wfeed/2+s/2, y0+D/2); 
+
+	  if (includeCenterTap)
+	  {
+	    mi_add_via(designContext, via_layer_spiral_crossoverID, x0-wfeed/2, y0+D/2, x0+wfeed/2, y0+D/2+feed_extension ); 
+	  }
+	  
+	  // copy inductor trace to layer below
+	  de_deselect_all();
+	  db_select_all_on_layerid(designContext, spiral_layerID, TRUE);
+	  de_copy_to_layerid(designContext, crossover_layerID);
+	  de_deselect_all();
+	  
+ 	}
+	
+
+	// create pins AFTER copying layer contents
+	db_create_pin(designContext, 			x0-feedline_spacing/2, y0-D/2 -feed_extension, -90, spiral_layerID, 1, "1");
+ 	db_create_pin(designContext, 			x0+feedline_spacing/2,   y0-D/2 -feed_extension, -90, spiral_layerID, 2, "2");
+	if (includeCenterTap) db_create_pin(designContext, x0,   y0 + D/2 + feed_extension, 90, spiral_layerID, 3, "3");
+
+
+
+
+	// Other layers that must be drawn under inductor
+	// These are in a list: other_inductor_layers_list
+	
+	// extra layers extension 
+	// extra_layer_extension variable is defined in technology.ael
+	
+	if (is_list(extra_inductor_layers_list))
+	{
+	  decl num_extra_layer = listlen(extra_inductor_layers_list);
+	  decl extra_layerNo;
+	  decl extra_string;
+	  decl extra_layerPurpose;
+	  decl extra_layerID;
+	  decl D1x = gridsnap(Dx/2 + extra_layer_extension);
+	  decl D1y = gridsnap(D/2  + extra_layer_extension );
+	  decl i=0;
+	  for ( i=0; i<num_extra_layer; i++ )
+	  {
+	    extra_string = nth(i, extra_inductor_layers_list);
+	    extra_layerNo = getLayerNum_NumPurposeString(extra_string);
+	    extra_layerPurpose = getPurposeNum_NumPurposeString (extra_string);
+	    extra_layerID = db_layerid(extra_layerNo, extra_layerPurpose);
+
+	    // draw octagon clockwise
+	    db_add_polygon(designContext);
+	    db_add_point(designContext, x0+D1x, y0-D1y);
+	    db_add_point(designContext, x0+D1x, y0+D1y);
+	    db_add_point(designContext, x0-D1x, y0+D1y);
+	    db_add_point(designContext, x0-D1x, y0-D1y);
+	    db_add_point(designContext, x0+D1x, y0-D1y);
+	    decl dbShape = db_end(designContext, extra_layerID);
+   
+	  }
+	}
+	
+	
+	// merge everything
+ 	merge_all();
+}
+
+
+
+// ================== octa single turn inductor =========================
+
+
+defun mi_octa_singleturn (N, D, w, s, L, includeCenterTap, stacked)
+{
+	// octa single turn inductor 
+	// Parameters:
+	// N is pro forma only, to keep the interface consistent. Number of turns is FIXED to N=1.
+	// D = outer diameter
+	// w = line width
+	// s = line spacing (used for feedline separation)
+	// L = output of estimated (caluclated) inductance, using callback function in component definition
+	// includeCenterTap = TRUE|FALSE: boolean
+	// stacked = TRUE|FALSE:  two conductors stacked for coil?
+
+
+	// get context of instance referencing this artwork
+	decl designContext = de_get_current_design_context();
+	// fputs(stderr, strcat("designContext = ", identify_value(designContext)));
+
+	// get mks to user units conversion factor
+	decl mks2uu = db_get_mks_to_uu_factor(designContext);
+	// fputs(stderr, strcat("Simulator units to user units conversion factor = ",identify_value(mks2uu)));
+
+	// convert to user units
+	D = gridsnap(D * mks2uu);
+	w = gridsnap(w * mks2uu);
+	s = gridsnap(s * mks2uu);
+
+	// get layerID, db_layerID (layernumber [,purpose])
+	decl spiral_layerID = db_layerid(spiral_layer);
+	decl crossover_layerID = db_layerid(crossover_layer);
+	decl underpass_layerID = db_layerid(underpass_layer);
+	decl underpass2_layerID = db_layerid(underpass2_layer);
+	decl via_layer_spiral_crossoverID  = db_layerid(via_layer_spiral_crossover);
+	decl via_layer_crossover_underpassID = db_layerid(via_layer_crossover_underpass);
+	decl via_layer_underpass_underpass2ID = db_layerid(via_layer_underpass_underpass2);
+	
+	// reference location (0,0) is at inductor center
+	decl x0 = gridsnap(D/2);
+	decl y0 = gridsnap(D/2);
+
+	// read from preference file
+	decl wfeed = gridsnap(pH_single_feedline_width); 
+
+
+	//fputs(stderr, strcat("N = ",identify_value(N)));
+	//fputs(stderr, strcat("w = ",identify_value(w)));
+	//fputs(stderr, strcat("s = ",identify_value(s)));
+	//fputs(stderr, strcat("D = ",identify_value(D)));
+	//fputs(stderr, strcat("wfeed = ",identify_value(wfeed)));
+
+
+	// feedline spacing, defined between the middle (!) of the feedlines
+	decl feedline_spacing = s + wfeed;
+	decl Dx = D + feedline_spacing;  // Size in x direction, due to feedline spacing
+	
+
+	// based on settings in preferences.ael, this will draw a metal frame around the inductor
+	if (draw_groundframe) mi_draw_frame(designContext,x0, y0, D);
+
+
+	// ==== feed with ports 1/2 ==
+		
+
+	// Feedline extension for this special  layout
+	decl feed_extension; 
+	if (groundframe_extend_feedline && draw_groundframe) {
+	  feed_extension = D/2*(groundframe_size_factor-1) + groundframe_oversize;	
+	  if (groundframe_extend_over_frame) feed_extension = feed_extension  + groundframe_width;
+	} else {
+  	  // Feedline extension is fixed to 5um
+	  feed_extension = 5;
+	}	
+
+	db_add_rectangle(designContext, spiral_layerID, x0-wfeed/2-feedline_spacing/2, y0-D/2+w, x0+wfeed/2-feedline_spacing/2, y0-D/2-feed_extension);
+	db_add_rectangle(designContext, spiral_layerID, x0-wfeed/2+feedline_spacing/2, y0-D/2+w, x0+wfeed/2+feedline_spacing/2, y0-D/2-feed_extension);
+
+
+
+	// create area pin with pin purpose
+  	muehlhaus_create_pin_pinpurpose (designContext, spiral_layer, x0-feedline_spacing/2-wfeed/2,   y0-D/2 -feed_extension, x0-feedline_spacing/2+wfeed/2,   y0-D/2 -feed_extension+wfeed/2, w/4, "LA"); 
+  	muehlhaus_create_pin_pinpurpose (designContext, spiral_layer, x0+feedline_spacing/2-wfeed/2,   y0-D/2 -feed_extension, x0+feedline_spacing/2+wfeed/2,   y0-D/2 -feed_extension+wfeed/2, w/4, "LB"); 
+  	
+  	
+	de_set_path_corner(PREF_SQUARE_PATH);
+	de_set_path_width(w);
+	
+	decl x1,y1=0;
+	
+	
+	// octagon	
+
+	decl segment_length = (D-w) / (1+sqrt(2));
+
+	// lower left quadrant
+	db_add_path(designContext);
+	x1 = gridsnap(x0-s/2);
+	y1 = gridsnap(y0 + (-D/2 + w/2 ));
+	db_add_point(designContext, x1, y1);
+	x1 = x0 - gridsnap(segment_length/2);
+	db_add_point(designContext, x1, y1);
+	x1 = x1 - gridsnap(segment_length/sqrt(2));
+	y1 = y1 + gridsnap(segment_length/sqrt(2));
+	db_add_point(designContext, x1, y1);
+	y1 = y1 + gridsnap(segment_length/2+D/20); // half segment and a little bit
+	db_add_point(designContext, x1, y1);
+	decl dbShape = db_end(designContext, spiral_layerID);
+
+	// upper left quadrant
+	db_add_path(designContext);
+	x1 = gridsnap(x0+D/20);
+	y1 = gridsnap(y0 + D/2 - w/2 );
+	db_add_point(designContext, x1, y1);
+	x1 = x0 - gridsnap(segment_length/2);
+	db_add_point(designContext, x1, y1);
+	x1 = x1 - gridsnap(segment_length/sqrt(2));
+	y1 = y1 - gridsnap(segment_length/sqrt(2));
+	db_add_point(designContext, x1, y1);
+	y1 = y1 - gridsnap(segment_length/2+D/20); // half segment and a little bit
+	db_add_point(designContext, x1, y1);
+	decl dbShape = db_end(designContext, spiral_layerID);
+
+
+	// lower right quadrant
+	db_add_path(designContext);
+	x1 = gridsnap(x0+s/2);
+	y1 = gridsnap(y0 + (-D/2 + w/2 ));
+	db_add_point(designContext, x1, y1);
+	x1 = x0 + gridsnap(segment_length/2);
+	db_add_point(designContext, x1, y1);
+	x1 = x1 + gridsnap(segment_length/sqrt(2));
+	y1 = y1 + gridsnap(segment_length/sqrt(2));
+	db_add_point(designContext, x1, y1);
+	y1 = y1 + gridsnap(segment_length/2+D/20); // half segment and a little bit
+	db_add_point(designContext, x1, y1);
+	decl dbShape = db_end(designContext, spiral_layerID);
+
+	// upper right quadrant
+	db_add_path(designContext);
+	x1 = gridsnap(x0-D/20);
+	y1 = gridsnap(y0 + D/2 - w/2 );
+	db_add_point(designContext, x1, y1);
+	x1 = x0 + gridsnap(segment_length/2);
+	db_add_point(designContext, x1, y1);
+	x1 = x1 + gridsnap(segment_length/sqrt(2));
+	y1 = y1 - gridsnap(segment_length/sqrt(2));
+	db_add_point(designContext, x1, y1);
+	y1 = y1 - gridsnap(segment_length/2+D/20); // half segment and a little bit
+	db_add_point(designContext, x1, y1);
+	decl dbShape = db_end(designContext, spiral_layerID);
+
+
+	
+	if (includeCenterTap)
+	{
+	  // outer pad 
+	  db_add_rectangle(designContext, spiral_layerID, x0-wfeed/2, y0+D/2-w, x0+wfeed/2, y0+D/2+feed_extension);
+	  
+
+	  // pin is created later, after copying objects to second layer
+	  
+	  // create area pin with pin purpose
+	  muehlhaus_create_pin_pinpurpose (designContext, spiral_layer, x0-wfeed/2, y0 + D/2 + feed_extension - wfeed/2, x0+wfeed/2, y0 + D/2 + feed_extension, w/4, "LC"); 
+
+	}  // if (includeCenterTap)
+
+
+
+ 	if (stacked) {
+	  mi_add_via(designContext, via_layer_spiral_crossoverID, x0-wfeed/2-feedline_spacing/2, y0-D/2+w, x0+wfeed/2-feedline_spacing/2, y0-D/2-feed_extension);
+	  mi_add_via(designContext, via_layer_spiral_crossoverID, x0-wfeed/2+feedline_spacing/2, y0-D/2+w, x0+wfeed/2+feedline_spacing/2, y0-D/2-feed_extension);
+	  mi_add_via(designContext, via_layer_spiral_crossoverID, x0-wfeed/2-s/2, y0+D/2-w, x0+wfeed/2+s/2, y0+D/2); 
+
+	  if (includeCenterTap)
+	  {
+	    mi_add_via(designContext, via_layer_spiral_crossoverID, x0-wfeed/2, y0+D/2, x0+wfeed/2, y0+D/2+feed_extension ); 
+	  }
+	  
+	  // copy inductor trace to layer below
+	  de_deselect_all();
+	  db_select_all_on_layerid(designContext, spiral_layerID, TRUE);
+	  de_copy_to_layerid(designContext, crossover_layerID);
+	  de_deselect_all();
+	  
+ 	}
+	
+	
+	// create pins AFTER copying layer contents
+	db_create_pin(designContext, 			x0-feedline_spacing/2, y0-D/2 -feed_extension, -90, spiral_layerID, 1, "1");
+ 	db_create_pin(designContext, 			x0+feedline_spacing/2,   y0-D/2 -feed_extension, -90, spiral_layerID, 2, "2");
+	if (includeCenterTap) db_create_pin(designContext, x0,   y0 + D/2 + feed_extension, 90, spiral_layerID, 3, "3");
+
+	
+
+	// Other layers that must be drawn under inductor
+	// These are in a list: other_inductor_layers_list
+	
+	// extra layers extension 
+	// extra_layer_extension variable is defined in technology.ael
+	
+	if (is_list(extra_inductor_layers_list))
+	{
+	  decl num_extra_layer = listlen(extra_inductor_layers_list);
+	  decl extra_layerNo;
+	  decl extra_string;
+	  decl extra_layerPurpose;
+	  decl extra_layerID;
+	  decl D1x = gridsnap(Dx/2 + extra_layer_extension);
+	  decl D1y = gridsnap(D/2  + extra_layer_extension );
+	  decl i=0;
+	  for ( i=0; i<num_extra_layer; i++ )
+	  {
+	    extra_string = nth(i, extra_inductor_layers_list);
+	    extra_layerNo = getLayerNum_NumPurposeString(extra_string);
+	    extra_layerPurpose = getPurposeNum_NumPurposeString (extra_string);
+	    extra_layerID = db_layerid(extra_layerNo, extra_layerPurpose);
+
+	    // draw octagon clockwise
+	    db_add_polygon(designContext);
+	    db_add_point(designContext, x0+D1x, y0-D1y);
+	    db_add_point(designContext, x0+D1x, y0+D1y);
+	    db_add_point(designContext, x0-D1x, y0+D1y);
+	    db_add_point(designContext, x0-D1x, y0-D1y);
+	    db_add_point(designContext, x0+D1x, y0-D1y);
+	    decl dbShape = db_end(designContext, extra_layerID);
+   
+	  }
+	}
+	
+	
+	// merge everything
+ 	merge_all();
+}
+
+
+
+// single ended octagon
+
+defun mi_ind_octa (N,D,w,s,L)   //single ended octagon layout
+{
+
+	// get context of instance referencing this artwork
+	decl designContext = de_get_current_design_context();
+
+	// get mks to user units conversion factor
+	decl mks2uu = db_get_mks_to_uu_factor(designContext);
+
+	// convert to user units
+	D = gridsnap(D * mks2uu);
+	w = gridsnap(w * mks2uu);
+	s = gridsnap(s * mks2uu);
+
+
+	decl fullturns = int(N);
+	decl quarterturns = round(4*(N - fullturns));
+	
+	// enforce N.5 turns 
+	quarterturns = 2; 
+
+	// underpass width factor from technology file
+	decl w_underpass = underpass_width_factor*w;  
+	if (w_underpass > max_underpass_width) {
+	  // make sure underpass is not wider than maximum metal width
+	  w_underpass=max_underpass_width;
+	}  	
+
+	// get layerID, db_layerID (layernumber [,purpose])
+	decl spiral_layerID = db_layerid(spiral_layer);
+	decl crossover_layerID = db_layerid(crossover_layer);
+	decl via_layer_spiral_crossoverID = db_layerid(via_layer_spiral_crossover);
+
+	// reference location (0,0) is at inductor center
+	decl x0 = gridsnap(D/2);
+	decl y0 = gridsnap(D/2);
+
+	// length of octagon segment on outermost turn, measured at path center
+	decl segment_length = (D-w) / (1+sqrt(2));
+
+	// spiral from outer to inner, clockwise
+	decl x1 = gridsnap (x0 - segment_length/2);
+	decl y1 = gridsnap (y0 - D/2 + w/2); // trace center bottom
+
+	// make sure we don't create a single via 
+	decl size_for_two_vias =  2 * mi_get_via_size(via_layer_spiral_crossover) + mi_get_via_gap(via_layer_spiral_crossover) + 2 * mi_get_via_margin(via_layer_spiral_crossover);
+	decl overlap_size = w;
+	if (w < size_for_two_vias) overlap_size = (1.1*size_for_two_vias);
+
+	// based on settings in preferences.ael, this will draw a metal frame around the inductor
+	if (draw_groundframe) mi_draw_frame(designContext,x0, y0, D);
+
+
+	// Pin at bottom center
+
+	decl feed_extension = 1.5*w;
+	if (groundframe_extend_feedline && draw_groundframe) {
+	  feed_extension = D/2*(groundframe_size_factor-1) + groundframe_oversize;	
+	  if (groundframe_extend_over_frame) feed_extension = feed_extension  + groundframe_width;
+	}  
+
+
+	db_create_pin(designContext, x0, y0-D/2-feed_extension, -90, spiral_layerID, 1, "1");
+
+
+	// beginn drawing at outer feed (bottom center)
+	de_set_path_corner(PREF_SQUARE_PATH);
+	de_set_path_width(w);
+
+	db_add_path(designContext);
+	db_add_point(designContext, x0, y1-feed_extension-w/2);	// start
+
+	// one full turn each
+	decl nfull;
+	for ( nfull=1; nfull<=fullturns+1; nfull++ )
+	{
+
+	  if (nfull > 1) db_add_path(designContext);
+	  y1 = gridsnap(y0 -D/2 + w/2 + (nfull-1)*(w+s));
+	  db_add_point(designContext, x0, y1);
+
+	  x1 = x0 - gridsnap(segment_length/2);
+	  db_add_point(designContext, x1, y1);
+
+	  x1 = x1 - gridsnap(segment_length/sqrt(2));
+	  y1 = y1 + gridsnap(segment_length/sqrt(2));
+	  db_add_point(designContext, x1, y1);
+	  
+	  y1 = y1 + gridsnap(segment_length); 
+	  db_add_point(designContext, x1, y1);
+
+	  x1 = x1 + gridsnap(segment_length/sqrt(2));
+	  y1 = y1 + gridsnap(segment_length/sqrt(2));
+	  db_add_point(designContext, x1, y1);
+	  
+	  if (nfull <= fullturns) 
+	  {
+	    // complete turns
+	    x1 = x0 + gridsnap(segment_length/2);
+	    db_add_point(designContext, x1, y1);
+
+	    x1 = x1 + gridsnap(segment_length/sqrt(2));
+	    y1 = y1 - gridsnap(segment_length/sqrt(2));
+	    db_add_point(designContext, x1, y1);
+
+	    y1 = y1 - gridsnap(segment_length-w-s);
+	    db_add_point(designContext, x1, y1);
+
+	    x1 = x1 - gridsnap(segment_length/sqrt(2));
+	    y1 = y1 - gridsnap(segment_length/sqrt(2));
+	    db_add_point(designContext, x1, y1);
+
+	    db_add_point(designContext, x0, y1);
+
+	  } else {
+	    // last half turn
+	    x1 = x0 + gridsnap(w_underpass/2);
+	    db_add_point(designContext, x1, y1);
+	  
+	  }
+	  
+	  // close shape
+	  decl dbShape = db_end(designContext, spiral_layerID);
+
+	  // decrease segment length for next turn
+	  segment_length = segment_length - 2*(w+s)/(1+sqrt(2));
+	}
+
+
+	if (quarterturns == 2)
+	{
+
+	  // crossover
+	  y1 = y1 - gridsnap(w/2);
+	  decl x2 = x0 - gridsnap(w_underpass/2);
+	  decl y2 = y0 + gridsnap(D/2+feed_extension);
+	  db_add_rectangle(designContext, crossover_layerID, x1,y1,x2,y2);
+
+	  // inner via
+	  y2 = gridsnap(y1+w);
+	  mi_add_via(designContext, via_layer_spiral_crossoverID, x1,y2-size_for_two_vias,x2,y2);
+
+	  // extra polygons for larger via area
+	  db_add_rectangle(designContext, spiral_layerID, x1,y2-size_for_two_vias,x2,y2);
+	  db_add_rectangle(designContext, crossover_layerID, x1,y2-size_for_two_vias,x2,y2);
+
+
+	  y1 = y0 + gridsnap(D/2+feed_extension);
+	  y2 = y1 - gridsnap(w);
+	  
+	  if (abs(x2-x1) < size_for_two_vias)
+	  {
+	    x1 = x0-size_for_two_vias/2;
+	    x2 = x0+size_for_two_vias/2;
+	  
+	  }
+	  
+	  db_add_rectangle(designContext, crossover_layerID, x1,y1,x2,y2);
+	  mi_add_via(designContext, via_layer_spiral_crossoverID, x1,y1,x2,y2);
+	  db_add_rectangle(designContext, spiral_layerID, x1,y1,x2,y2);
+
+	  // Pin at crossover
+	  db_create_pin(designContext, x0, y1, 90, spiral_layerID, 2, "2");
+
+	}
+
+
+
+	// Other layers that must be drawn under inductor
+	// These are in a list: other_inductor_layers_list
+	
+	// extra layers extension 
+	// extra_layer_extension variable is defined in technology.ael
+	
+	if (is_list(extra_inductor_layers_list))
+	{
+	  decl num_extra_layer = listlen(extra_inductor_layers_list);
+	  decl extra_layerNo;
+	  decl extra_string;
+	  decl extra_layerPurpose;
+	  decl extra_layerID;
+	  decl D1;
+	  decl i;
+
+	  if ((gridsnap(D/2 + extra_layer_extension)) > (gridsnap(D/2 + 1.5*w ))) {
+	   D1 = gridsnap(D/2 + extra_layer_extension );
+	  } else {
+	   D1 = gridsnap(D/2 + 1.5*w );
+	  }
+
+	  decl D2 = gridsnap(D1/(1+sqrt(2)));
+	  
+  
+	  for ( i=0; i<num_extra_layer; i++ )
+	  {
+	    extra_string = nth(i, extra_inductor_layers_list);
+	    extra_layerNo = getLayerNum_NumPurposeString(extra_string);
+	    extra_layerPurpose = getPurposeNum_NumPurposeString (extra_string);
+	    extra_layerID = db_layerid(extra_layerNo, extra_layerPurpose);
+	      
+	    // draw octagon clockwise
+	    db_add_polygon(designContext);
+	    db_add_point(designContext, x0+D2, y0-D1);
+	    db_add_point(designContext, x0+D1, y0-D2);
+	    db_add_point(designContext, x0+D1, y0+D2);
+	    db_add_point(designContext, x0+D2, y0+D1);
+	    db_add_point(designContext, x0-D2, y0+D1);
+	    db_add_point(designContext, x0-D1, y0+D2);
+	    db_add_point(designContext, x0-D1, y0-D2);
+	    db_add_point(designContext, x0-D2, y0-D1);
+
+	    decl dbShape = db_end(designContext, extra_layerID);
+	  }
+	}
+	
+
+	// merge everything
+	 merge_all();
+	
+	
+	// code for minimum inductor diameter must match the artwork drawing
+	// function: octa_single_min_diameter(N,w,s)
+	// code location: ael/minimum_artwork.ael
+	
+}
+
+
+
+
+// --------------------- UTILITIES ----------------------------
+
+
+
+
+defun mi_add_via (designContext, layerID, x1,y1,x2,y2)
+{
+	// inductor drawing can this to add a via
+	// if needed, this function can tweak the via dimension/offset
+	// parameters: x1,y1,x2,y2 of the bounding rectangle
+
+	if (define_via_array) {
+	  // draw the via array details
+	  mi_draw_via_array(designContext, layerID, x1,y1,x2,y2);
+	} else {
+	  // just draw the bounding box
+	  db_add_rectangle(designContext, layerID, x1,y1,x2,y2);
+	}  
+}
+
+
+defun mi_draw_via_array (designContext, layerID, xa,ya,xb,yb)
+{
+	// draw a via array
+
+
+  	decl via_size = 0; // invalid default to check -> must be changed below
+	decl via_gap  = 0; 
+	decl via_margin = 0;
+	
+	// call function from technology settings to set via size
+	decl layernum = db_get_layer_number(layerID);
+	via_size = mi_get_via_size(layernum);
+	via_gap = mi_get_via_gap(layernum);
+	via_margin = mi_get_via_margin(layernum);
+	
+	
+	// do we have valid dimensions now?
+	if (via_size < 0.1) {
+	  de_info("Invalid via size, via rule is missing for this layer");
+	  // set some meaningful values so that drawing does not fail!
+	   via_size = 0.5;
+	   via_gap  = 0.5;
+	   via_margin = 0.5; 
+	}  
+
+
+
+	// make sure that x2>x1 and y2>y1
+
+	decl x1 = smaller (xa,xb);
+	decl x2 = larger  (xa,xb);
+	decl y1 = smaller (ya,yb);
+	decl y2 = larger  (ya,yb);
+
+	// maximum net size available for vias
+	decl max_size_x = gridsnap((x2-x1) - 2*via_margin);
+	decl num_vias_x = 1 + int( (max_size_x - via_size)/(via_size + via_gap));
+	decl effective_margin_x = gridsnap(((x2-x1) - via_size - (num_vias_x-1)*(via_size + via_gap))/2);
+
+	decl max_size_y = gridsnap((y2-y1) - 2*via_margin);
+	decl num_vias_y = 1 + int( (max_size_y - via_size)/(via_size + via_gap));
+	decl effective_margin_y = gridsnap(((y2-y1) - via_size - (num_vias_y-1)*(via_size + via_gap))/2);
+
+	decl x=0;
+	decl n=0;
+	decl y=0;
+	decl m=0;
+
+	x = gridsnap(x1 + effective_margin_x);
+	
+	for ( n=1; n<=num_vias_x; n++ )
+	{
+		y = gridsnap(y1 + effective_margin_y); 
+		for ( m=1; m<=num_vias_y; m++ )
+		{
+			db_add_rectangle(designContext, layerID, x, y, x+via_size, y+via_size);
+  			
+			y = gridsnap(y + via_size + via_gap);
+		} // for m
+		x = gridsnap(x + via_size + via_gap);
+	}	// for n
+
+}
+
+
+
+defun mi_draw_frame (designContext, x0, y0, D)
+{
+    // optional ground frame around inductor
+    decl groundframe_layerID = db_layerid(groundframe_layer);
+    decl Dframe = D*groundframe_size_factor + 2*groundframe_oversize;
+    db_add_rectangle(designContext, groundframe_layerID, x0-Dframe/2-groundframe_width, y0-Dframe/2-groundframe_width, x0-Dframe/2, y0+Dframe/2+groundframe_width);
+    db_add_rectangle(designContext, groundframe_layerID, x0+Dframe/2+groundframe_width, y0-Dframe/2-groundframe_width, x0+Dframe/2, y0+Dframe/2+groundframe_width);
+    db_add_rectangle(designContext, groundframe_layerID, x0-Dframe/2-groundframe_width, y0-Dframe/2-groundframe_width, x0+Dframe/2+groundframe_width, y0-Dframe/2);
+    db_add_rectangle(designContext, groundframe_layerID, x0-Dframe/2-groundframe_width, y0+Dframe/2+groundframe_width, x0+Dframe/2+groundframe_width, y0+Dframe/2);
+}
+
+
+defun merge_all()
+{
+   // Merge everything
+   de_select_all();
+   de_merge_or();
+   de_deselect_all();
+}
+
+
+defun mi_add_text (designContext, layerID, x1,y1,textstring, textsize, angle)
+{
+ // add a text at the given location, with specified size in user units and angle in degress 0/90/180/-90
+ 
+ 
+ // set input layer
+ db_set_entry_layerid(designContext, layerID);
+ 
+ // size and orientation
+ de_set_text_angle(angle);
+ de_set_text_height(textsize);
+ de_set_text_justification(DB_MID_JUST | DB_CENTER_JUST);
+ 
+ // draw text with ADS default properties
+ de_add_text(x1, y1, textstring);
+ 
+}
+
+
+
+defun muehlhaus_create_pin_pinpurpose (designContext, layer_number, x1, y1, x2, y2, textsize, pinlabel) 
+{
+  // create area pin on pin layer
+  // this might not be applicable to all technologies
+  
+  // Note: even if the purpose 2 is not defined in the ADS technology, the rectangle is drawn 
+  // and has the right properties. ADS seems to attach layer number and purpose number, not matter 
+  // if that is properly defined in ADS layers ...
+  
+  if (is_function_defined("get_pin_shape_layer")) {
+    // if this is defined in the technology, we can get the area pin target layer/purpose 
+
+    //fputs(stderr, strcat("layer_number = ", identify_value(layer_number)));
+    //fputs(stderr, strcat("calling line = ", identify_value(what_line())));
+
+    decl pin_shape_layer = get_pin_shape_layer (layer_number);  // defined in technology.ael
+    db_add_rectangle(designContext, pin_shape_layer, x1, y1, x2, y2);
+
+    
+    if (is_function_defined("get_pin_label_layer")) {
+      // if this is defined in the technology, we can label the pins
+      // see IHP technology how that function should look like
+      decl pin_text_layer = get_pin_label_layer();
+      mi_add_text (designContext, pin_text_layer, (x1+x2)/2, (y1+y2)/2, pinlabel, textsize, 0);
+    }  
+  }  
+
+}
+
+
+defun is_even (N)
+{
+	return ((N - 2*int(N/2))<0.01);
+}
+
+
+defun is_integer (N)
+{
+	return ((N - int(N))<0.01);
+}
+
+
+
+defun larger (a,b)
+// return the larger of two values;
+{
+
+	if (a>b)
+	{ return a; }
+	else
+	{ return b; }
+}
+
+
+defun smaller (a,b)
+// return the larger of two values;
+{
+	if (a<b)
+	{ return a; }
+	else
+	{ return b; }
+}
+
+

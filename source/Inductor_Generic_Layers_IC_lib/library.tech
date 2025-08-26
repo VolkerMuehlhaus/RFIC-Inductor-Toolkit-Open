@@ -1,0 +1,23 @@
+<!DOCTYPE Technology>
+<Lpp_List>
+    <LPP alpha="255" rgb="16711935" protect="0" purpose="drawing" line="0" visible="1" mode="2" fill="0" layer="Cont"/>
+    <LPP alpha="255" rgb="11206655" protect="0" purpose="drawing" line="0" visible="1" mode="2" fill="64" layer="Metal1"/>
+    <LPP alpha="255" rgb="4567802" protect="0" purpose="drawing" line="0" visible="1" mode="2" fill="0" layer="Metal2"/>
+    <LPP alpha="255" rgb="16711680" protect="0" purpose="drawing" line="0" visible="1" mode="2" fill="30" layer="Metal3"/>
+    <LPP alpha="255" rgb="44288" protect="0" purpose="drawing" line="0" visible="1" mode="2" fill="26" layer="Metal4"/>
+    <LPP alpha="255" rgb="65535" protect="0" purpose="drawing" line="0" visible="1" mode="2" fill="22" layer="Metal5"/>
+    <LPP alpha="255" rgb="16776960" protect="0" purpose="drawing" line="0" visible="1" mode="2" fill="20" layer="Metal6"/>
+    <LPP alpha="255" rgb="255" protect="0" purpose="drawing" line="0" visible="1" mode="2" fill="0" layer="Poly"/>
+    <LPP alpha="255" rgb="65535" protect="0" purpose="drawing" line="0" visible="1" mode="2" fill="0" layer="TEXT"/>
+    <LPP alpha="255" rgb="16755455" protect="0" purpose="drawing" line="0" visible="1" mode="2" fill="0" layer="Via1"/>
+    <LPP alpha="255" rgb="11184640" protect="0" purpose="drawing" line="0" visible="1" mode="2" fill="0" layer="Via2"/>
+    <LPP alpha="255" rgb="16755200" protect="0" purpose="drawing" line="0" visible="1" mode="2" fill="0" layer="Via3"/>
+    <LPP alpha="255" rgb="11206527" protect="0" purpose="drawing" line="0" visible="1" mode="2" fill="0" layer="Via4"/>
+    <LPP alpha="255" rgb="16777215" protect="0" purpose="drawing" line="0" visible="1" mode="2" fill="1" layer="Via5"/>
+    <LPP alpha="255" rgb="16777215" protect="0" purpose="drawing" line="0" visible="1" mode="2" fill="0" layer="cont_merged"/>
+    <LPP alpha="255" rgb="139" protect="0" purpose="drawing" line="0" visible="1" mode="2" fill="0" layer="via1_merged"/>
+    <LPP alpha="255" rgb="25600" protect="0" purpose="drawing" line="0" visible="1" mode="2" fill="0" layer="via2_merged"/>
+    <LPP alpha="255" rgb="16711680" protect="0" purpose="drawing" line="0" visible="1" mode="2" fill="0" layer="via3_merged"/>
+    <LPP alpha="255" rgb="16776960" protect="0" purpose="drawing" line="0" visible="1" mode="2" fill="0" layer="via4_merged"/>
+    <LPP alpha="255" rgb="32768" protect="0" purpose="drawing" line="0" visible="1" mode="2" fill="0" layer="via5_merged"/>
+</Lpp_List>

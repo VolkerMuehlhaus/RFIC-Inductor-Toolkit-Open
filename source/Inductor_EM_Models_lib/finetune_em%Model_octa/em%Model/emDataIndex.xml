@@ -1,0 +1,12 @@
+<emDataViewDatabaseIndex>
+  <version minor="1" major="1"/>
+  <emDatabase>
+    <ParameterNames>
+      <parameterName>w</parameterName>
+      <parameterName>s</parameterName>
+      <parameterName>dout</parameterName>
+      <parameterName>N</parameterName>
+    </ParameterNames>
+    <databaseItems/>
+  </emDatabase>
+</emDataViewDatabaseIndex>

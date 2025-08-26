@@ -1,0 +1,2919 @@
+
+// Global variables
+
+
+
+defun Create_toolkit_dir ()
+{
+  // create the inductor toolkit dir if it does not yet exist
+  decl toolkit_dir = strcat(getcwd(),"/inductor_toolkit");
+
+  if ( !is_dir(toolkit_dir))
+  {
+    if (mkdir(toolkit_dir)) 
+    {
+      fputs(stderr, "Inductor toolkit working directory created");
+    } else {
+      fputs(stderr, "Could not create inductor toolkit working directory");
+    }
+  }    
+}
+
+
+
+defun Copy_substrate_GF ();
+{
+  // Copy existing Green's functions for substrate and set path to them
+
+
+  // create the substrate GF dir if it does not yet exist
+  decl GF_dir = strcat(getcwd(),"/substrates");
+
+  if (copy_precalculated_substrate_functions)
+  {
+    if ( !is_dir(GF_dir))
+    {
+      if (mkdir(GF_dir)) 
+      {
+        fputs(stderr, "Substrate Green's functions directory created, now copying GF files");
+
+        // NOTE:
+        // No need to set variable, because ADS will find substrate folder in workspace automatically 
+
+        // copy substrate GF files to workspace dir
+        decl filelist = get_dir_files(strcat(MUEHLHAUS_INDUCTOR_PDK_PATH, "substrates"));
+        decl listsize = listlen(filelist);
+        if (listsize>0)
+        {
+          // We have substrate files to copy
+
+          decl i;
+          decl filename;
+
+            for ( i=0; i < listsize; i++)
+            {
+              filename = nth(i, filelist);
+              gfile_copy(strcat(MUEHLHAUS_INDUCTOR_PDK_PATH, "substrates/", filename), strcat(GF_dir, "/", filename)); 
+              fputs(stderr, strcat("Copied substrate file '", filename, "' from Inductor Toolkit substrates to workspace substrates file"));
+
+            }  
+        }
+
+      } else {
+        fputs(stderr, "Could not create substrate Green's functions directory ");
+      }
+    } else {
+       fputs(stderr, "Configuration is set to copy substrate functions from Inductor Toolkit, but substrate directory found in workspace, so don't make any changes now.");
+    }
+  } else {
+    // fputs(stderr, "Configuration is set to NOT copy substrate functions from Inductor Toolkit, so don't make any changes now.");
+  }
+}
+
+
+
+
+defun remove_files (dirname, filesuffix)
+// remove all files with the given suffix from this directory
+{
+  decl filelist = get_dir_files(dirname, filesuffix);
+  decl listsize = listlen(filelist);
+  if (listsize>0)
+  {
+    decl i;
+    decl filename;
+    for ( i=0; i < listsize; i++)
+    {
+      filename = strcat(dirname, "/", nth(i, filelist));
+      // fputs(stderr, strcat("File to delete: '", filename,"'"));
+
+      // remove file
+      remove (filename);
+      
+    }    
+  }
+}
+
+
+defun reset_model_index (modeldir)
+// reset the index number in model.ndx by reading up to the line 
+// with the number, change that to zero and skip the rest of the file
+{
+  decl indexfilename = strcat(modeldir, "/model.ndx");
+  decl textlines = list();  // list to hold the lines of the file
+  decl fline;  // current line
+  decl skip_rest = FALSE;
+  decl NROFSAMPLES_pos;
+
+  // read the model.ndx file
+  decl fID = fopen(indexfilename, "R");  // open file for reading
+  if (fID!=NULL) {
+    // we can read the file
+    fline=fgets(fID);  
+    while ((fline != NULL) && (skip_rest == FALSE))
+    { 
+      // we can get (another) line from the file
+
+      // does this line specify the number of samples, e.g. 'NROFSAMPLES: 22;'
+      NROFSAMPLES_pos = index(fline, "NROFSAMPLES"); // not found return is -1
+      if (NROFSAMPLES_pos > -1)
+      {
+        // we have found the line with the number of samples
+        // stop further reading the file
+        skip_rest = TRUE;
+        // replace the line with another line indictaing zero samples
+        textlines = append(textlines, list("NROFSAMPLES: 0;")); // append modified line to the list
+      
+      } else {
+        // line normal text, add to list of lines
+        textlines = append(textlines, list(fline)); // append current line to the list
+      }  
+      
+      // get the next line
+      fline=fgets(fID);  
+    }    
+    fclose(fID);  // finally close file
+  }
+  
+
+  // re-write the model.ndx file with the new contents
+  decl numlines = listlen(textlines);
+  decl fID = fopen(indexfilename, "W");  // open file for reading
+  if (fID!=NULL) {
+    if (numlines>0)
+    {
+      decl i;
+      for ( i=0; i < numlines; i++)
+      {
+        fputs(fID, nth(i, textlines));    
+      }    
+    }
+    fclose(fID);  // finally close file
+  }
+}
+
+
+
+
+defun reset_data_index (modeldir)
+// remove the data entries from emDataIndex.xml 
+
+{
+  decl indexfilename = strcat(modeldir, "/emDataIndex.xml");
+  decl textlines = list();  // list to hold the lines of the file
+  decl fline;  // current line
+  decl skip_rest = FALSE;
+  decl databaseItems_pos;
+
+  // read the model.ndx file
+  decl fID = fopen(indexfilename, "R");  // open file for reading
+  if (fID!=NULL) {
+    // we can read the file
+    fline=fgets(fID);  
+    while ((fline != NULL) && (skip_rest == FALSE))
+    { 
+      // we can get (another) line from the file
+
+      // does this line specify the beginning of the databse items?'
+      databaseItems_pos = index(fline, "databaseItems"); // not found return is -1
+      if (databaseItems_pos > -1)
+      {
+        // we have found the line where the databse items begin
+        // stop further reading the file
+        skip_rest = TRUE;
+        // replace the line with another line indicating no samples
+        textlines = append(textlines, list("    <databaseItems/>")); 
+        textlines = append(textlines, list("  </emDatabase>")); 
+        textlines = append(textlines, list("</emDataViewDatabaseIndex>")); 
+      
+      } else {
+        // line normal text, add to list of lines
+        textlines = append(textlines, list(fline)); // append current line to the list
+      }  
+      
+      // get the next line
+      fline=fgets(fID);  
+    }    
+    fclose(fID);  // finally close file
+  }
+  
+
+  // re-write the model.ndx file with the new contents
+  decl numlines = listlen(textlines);
+  decl fID = fopen(indexfilename, "W");  // open file for reading
+  if (fID!=NULL) {
+    if (numlines>0)
+    {
+      decl i;
+      for ( i=0; i < numlines; i++)
+      {
+        fputs(fID, nth(i, textlines));    
+      }    
+    }
+    fclose(fID);  // finally close file
+  }
+
+}
+
+
+
+defun clean_model_results (modeldir)
+{
+  // remove the pre-computed results for an emModel, and reset the counter in the model.ndx index file
+  // modeldir is the name of the emModel without path
+
+  decl dirname = strcat(modeldir, "/em%Model");
+
+  if ( is_dir(dirname))
+  {
+    remove_files (dirname, "cti");
+    remove_files (dirname, "rat");
+    remove_files (dirname, "sam");
+    remove_files (dirname, "afs");
+    remove_files (dirname, "sio");  // for ADS2017
+    remove_files (dirname, "zip");  // for ADS2017
+    
+    reset_model_index (dirname);
+    reset_data_index  (dirname);
+    
+  } else {
+    // No problem! We might run into this path if the cell has no emModel view!
+    // fputs(stderr, strcat("Could not find directory '", dirname,"'"));
+  }
+}
+
+
+
+defun scan_directory_for_dirs(DirName)
+// old Agilent code from support pages, author Mats Frerikson
+{
+  decl ls, FN, SubDir;
+  decl dirs;
+  decl dirSep = api_get_directory_delimiter();
+
+  dirs=list("");
+
+  if ( DirName == "." || DirName == ".." )
+    return;
+
+  if ( is_dir(DirName))
+  {
+    ls=get_dir_files(DirName);
+    FN=car(ls);
+    while (FN)
+    {
+       SubDir=strcat( DirName , dirSep );
+       SubDir=strcat( SubDir, FN );          
+       if ( is_dir(SubDir) AND (FN != ".") AND (FN != "..") )        
+       {           
+         dirs=append(dirs,list(FN));
+       }
+       ls=cdr(ls);
+       FN=car(ls);
+    }
+  }
+  else
+  {
+    // fputs(stderr, strcat("Could not find directory '", DirName,"'"));
+  }
+
+  dirs=cdr(dirs);
+  return dirs;  
+
+}
+
+
+defun clean_all_emModel_results ()
+{
+  // base directory where we want to search for emModel cells
+  decl basedir = strcat(MUEHLHAUS_INDUCTOR_PDK_PATH, "Inductor_EM_Models_lib");
+  
+  decl dirlist = scan_directory_for_dirs(basedir);
+  decl listsize = listlen(dirlist);
+  if (listsize>0)
+  {
+    decl i;
+    decl dirname;
+    for ( i=0; i < listsize; i++)
+    { 
+      dirname = strcat(basedir, "/", nth(i, dirlist));
+      clean_model_results (dirname);
+    }    
+  }
+
+  
+  // clear previous simulation log
+  Muehlhaus_Clear_History_File ();
+
+}
+
+
+defun ask_set_emModel_frequency ()
+{
+  de_prompt("Set new maximum frequency", "Please enter new maximum frequency in GHz\n\nSide effect: clears existing emModel database.\nPress Cancel to exit without making changes.", "20", NULL, "get_new_emModel_frequency", 20, "");
+}
+
+
+defun get_new_emModel_frequency(input_str, userCbData)
+// return function from callback if user sets new frequency
+{
+  decl fmax_GHz = val(input_str);
+  if ((fmax_GHz != NULL) && (fmax_GHz <1000)) 
+  { 
+    // seems to be a number, and within correct range
+    // pass to function that makes the changes
+    set_all_emModel_frequencies (fmax_GHz);
+    // With the new frequency, we have to delete the old database data
+    clean_all_emModel_results ();
+    // Now, update the schematics that call the emModels
+    set_all_schematics_max_frequency (fmax_GHz);
+    // message to the user that changes where made
+    de_info(strcat("Maximum frequency was changed to ", input_str, " GHz"));
+    
+  } else {
+    de_info(strcat("Error: ", input_str, " GHz is not a valid input"));
+  }  
+   
+}
+
+
+
+defun set_all_emModel_frequencies (fmax_GHz)
+{
+  // update Momentum frequncy settings in all emModel directories
+  
+  // base directory where we want to search for emModel cells
+  decl basedir = strcat(MUEHLHAUS_INDUCTOR_PDK_PATH, "Inductor_EM_Models_lib");
+  
+  decl dirlist = scan_directory_for_dirs(basedir);
+  decl listsize = listlen(dirlist);
+  if (listsize>0)
+  {
+    decl i;
+    decl dirname;
+    for ( i=0; i < listsize; i++)
+    { 
+      // change frequency in emModel
+      dirname = strcat(basedir, "/", nth(i, dirlist),"/em%Model");
+      set_emStateFile_max_frequency (dirname, fmax_GHz);
+      // change frequency in emSetup
+      dirname = strcat(basedir, "/", nth(i, dirlist),"/em%Setup");
+      set_emStateFile_max_frequency (dirname, fmax_GHz);
+    }    
+  }
+}
+
+
+defun set_emStateFile_max_frequency (modeldir, newfreq)
+// update the Momentum maximum frequency in the emStateFile 
+
+{
+  decl statefilename = strcat(modeldir, "/emStateFile.xml");
+  decl textlines = list();  // list to hold the lines of the file
+  decl fline;  // current line
+  decl MomentumFreqSection = FALSE;
+  decl MomentumStopFreq = FALSE;
+  decl MomentumStopFreqUnit = FALSE;
+
+  // read the model.ndx file
+  decl fID = fopen(statefilename, "R");  // open file for reading
+  if (fID!=NULL) {
+    // we can read the file
+    fline=fgets(fID);  
+    while (fline != NULL) 
+    { 
+      // we can get a line from the file
+
+      // does this line specify the relevant Momentum frequency settings?
+      if (index(fline, "<MomSimFreqTable") > -1) MomentumFreqSection=TRUE;  // section starts
+      if (index(fline, "</MomSimFreqTable>") > -1) MomentumFreqSection=FALSE; // section ends
+      if (index(fline, "<stopFreq>") > -1) MomentumStopFreq=TRUE; else MomentumStopFreq=FALSE;
+      if (index(fline, "<stopFreqUnit>") > -1) MomentumStopFreqUnit=TRUE; else MomentumStopFreqUnit=FALSE;
+      
+      
+      if (MomentumFreqSection) 
+      {
+        // we are in the Momentum frequency settings
+        if (MomentumStopFreq) 
+        {
+          // this is the stop frequency, insert our new frequency value
+          fline = sprintf("          <stopFreq>%.2f</stopFreq>", newfreq);
+        }
+        
+        if (MomentumStopFreqUnit) 
+        {
+          // this is the stop frequency unit, make sure it is set to GHz
+          fline = sprintf("          <stopFreqUnit>GHz</stopFreqUnit>", newfreq);
+        }
+      }
+
+      textlines = append(textlines, list(fline)); // append current line to the list
+
+      
+      // get the next line
+      fline=fgets(fID);  
+    }    
+    fclose(fID);  // finally close file
+  }
+  
+
+  // re-write the file with the new contents
+  decl numlines = listlen(textlines);
+  decl fID = fopen(statefilename, "W");  // open file for reading
+  if (fID!=NULL) {
+    if (numlines>0)
+    {
+      decl i;
+      for ( i=0; i < numlines; i++)
+      {
+        fputs(fID, nth(i, textlines));    
+      }    
+    }
+    fclose(fID);  // finally close file
+  }
+
+}
+
+
+
+
+defun set_all_emModel_userstring (tag, newstring)
+{
+  // update a user defined entry in *all* emStateFile, overwrite old entry 
+  
+  // base directory where we want to search for emModel cells
+  decl basedir = strcat(MUEHLHAUS_INDUCTOR_PDK_PATH, "Inductor_EM_Models_lib");
+  
+  decl dirlist = scan_directory_for_dirs(basedir);
+  decl listsize = listlen(dirlist);
+  if (listsize>0)
+  {
+    decl i;
+    decl dirname;
+    for ( i=0; i < listsize; i++)
+    { 
+      // change frequency in emModel
+      dirname = strcat(basedir, "/", nth(i, dirlist),"/em%Model");
+      set_emStateFile_userstring (dirname, tag, newstring);
+      // change frequency in emSetup
+      dirname = strcat(basedir, "/", nth(i, dirlist),"/em%Setup");
+      set_emStateFile_userstring (dirname, tag, newstring);
+    }    
+  }
+}
+
+  
+  
+defun set_emStateFile_userstring (modeldir, tag, newstring)
+// update a user defined entry in the emStateFile, overwrite old entry 
+  
+{
+  decl statefilename = strcat(modeldir, "/emStateFile.xml");
+  decl textlines = list();  // list to hold the lines of the file
+  decl fline;  // current line
+
+  // read the model.ndx file
+  decl fID = fopen(statefilename, "R");  // open file for reading
+  if (fID!=NULL) {
+    // we can read the file
+    fline=fgets(fID);  
+    decl tagposition;
+    decl i;
+    while (fline != NULL) 
+    { 
+      // we can get a line from the file
+      // does this line specify the relevant tag
+
+      tagposition = index(fline, strcat("<",tag,">"));
+      if ( tagposition > -1) {
+        // change this line
+        fline = "";
+        // add spaces
+        for ( i=0; i < tagposition; i++) fline = strcat(fline, " ");
+        // add tag and new value
+        fline = strcat(fline, "<", tag, ">", newstring, "</", tag, ">");
+      }
+
+      textlines = append(textlines, list(fline)); // append current line to the list
+
+      // get the next line
+      fline=fgets(fID);  
+    }    
+    fclose(fID);  // finally close file
+  }  
+  
+
+  // re-write the file with the new contents
+  decl numlines = listlen(textlines);
+  decl fID = fopen(statefilename, "W");  // open file for writing
+  if (fID!=NULL) {
+    if (numlines>0)
+    {
+      decl i;
+      for ( i=0; i < numlines; i++)
+      {
+        fputs(fID, nth(i, textlines));    
+      }    
+    }
+    fclose(fID);  // finally close file
+  }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+defun set_all_schematics_max_frequency (newStopFreq)
+{
+  close_open_schematic () ;
+
+  open_cellview_window ("Inductor_EM_Models_lib","batchsim_2port","schematic");  
+  change_frequency_block (newStopFreq);
+  close_open_schematic () ;
+
+  open_cellview_window ("Inductor_EM_Models_lib","batchsim_3port_centertap","schematic");  
+  change_frequency_block (newStopFreq);
+  close_open_schematic () ;
+
+  open_cellview_window ("Inductor_EM_Models_lib","batchsim_3port_groundshield","schematic");  
+  change_frequency_block (newStopFreq);
+  close_open_schematic () ;
+
+  open_cellview_window ("Inductor_EM_Models_lib","batchsim_4port_centertap_groundshield","schematic");  
+  change_frequency_block (newStopFreq);
+  close_open_schematic () ;
+
+  open_cellview_window ("Inductor_EM_Models_lib","batchsim_transformer_6port","schematic");  
+  change_frequency_block (newStopFreq);
+  close_open_schematic () ;
+
+  
+}  
+
+
+
+defun Muehlhaus_get_about () 
+{
+  // Version information dialog
+  // returns one long string, separated with \n line separator
+  
+  decl infotext = "";
+  decl fline;
+  
+  
+  // read infotext from about file
+  decl aboutfile = strcat(MUEHLHAUS_INDUCTOR_PDK_PATH, "doc/about.txt");
+  decl fID = fopen(aboutfile, "R");  // open file for reading
+  if (fID!=NULL) {
+    // we can read the file
+    
+    do 
+      {
+      fline=fgets(fID);  
+      infotext = strcat(infotext, fline, "\n");
+      }
+    while (fline!=NULL);
+    fclose(fID);  // finally close file
+  }  
+  
+  return infotext;
+}
+
+
+
+defun error_open_cmd ()
+{
+  // This error might be thrown when Linux open command does not exist
+  fputs(stderr,strcat("Error executing command, cannot open document"));
+  on_error(); 
+} 
+
+
+defun Muehlhaus_open_URL (filename)
+{
+  // this is almost like Muehlhaus_open_PDF, but does NOT convert slash to backslash! 
+  
+  if (leftstr(getcwd(),1) == "/") { 
+    
+    // Linux
+    // catch possible errors
+    on_error(error_open_cmd);
+    fputs(stderr,strcat("Opening URL: ", Linux_open_URL_commmand," ",filename,"\n"));
+    system(strcat(Linux_open_URL_commmand, " ", filename));
+    on_error(); 
+
+  } else { 
+    // Windows 
+    fputs(stderr,strcat("Opening URL with edaopenurl.exe: ",filename,"\n"));
+    system(strcat("edaopenurl.exe ", filename));
+  }
+  
+}
+
+defun Muehlhaus_open_PDF (filename)
+{
+
+  // check if we need to enclose filename in " "
+  if (index(filename, " ") != -1) 
+  {
+     filename = strcat("\"", filename, "\"");
+  }
+  
+  if (leftstr(getcwd(),1) == "/") { 
+    
+    // Linux
+    // catch possible errors
+    on_error(error_open_cmd);
+    fputs(stderr,strcat("Opening file: ", Linux_open_PDF_commmand," ",filename,"\n"));
+    system(strcat(Linux_open_PDF_commmand, " ", filename));
+    on_error(); 
+  
+
+    
+  } else { 
+    // Windows 
+    // change / to \ again
+    filename = backslashify (filename);
+    fputs(stderr,strcat("Opening file with edaopenurl.exe: ",filename,"\n"));
+    system(strcat("edaopenurl.exe ", filename));
+  }
+  
+}
+
+
+
+
+defun replace_string(OriginalString, SearchString, ReplaceWith)
+{
+   decl a=OriginalString;
+   decl NewString="";
+
+   while (a)
+   {
+      if ( leftstr(a, strlen(SearchString) ) == SearchString )
+      {
+         NewString=strcat(NewString, ReplaceWith);
+         a=rightstr(a,strlen(a)-strlen(SearchString));
+      }
+      else
+      {
+        NewString=strcat(NewString,leftstr(a,1));
+        a=rightstr(a,strlen(a)-1);                  
+      }
+   }
+   return NewString;
+}
+
+
+defun slashify (theString)
+{
+  // change string with / or \ to / so that we can use string compare functions
+  decl newStr = replace_string(theString, "\\", "/");
+  return newStr;
+}
+
+defun backslashify (theString)
+{
+  // change string with / to \ so that we can use string compare functions
+  decl newStr = replace_string(theString, "/", "\\");
+  return newStr;
+}
+
+
+defun find_index (theItem, theList)
+{
+  // find the index of an item in a list, NULL if it does not exist
+  
+  decl listsize = listlen(theList);
+  decl i;
+  decl aItem;
+  decl foundIndex = NULL;
+  
+  for ( i=0; i < listsize; i++)
+  {
+    aItem = nth (i, theList);
+    if (aItem ==  theItem) foundIndex=i;
+  }
+  
+  return foundIndex;
+  
+
+}
+
+
+
+defun Muehlhaus_get_libname ()
+{
+  decl libraryList = de_get_open_libraries(TRUE); // get open libraries in workspace
+  decl listsize = listlen(libraryList);
+  decl i;
+  decl openLibName;
+  decl UserLibName = "";
+  decl libPath;
+  
+  for ( i=0; i < listsize; i++)
+  {
+      openLibName = nth(i, libraryList);
+      // fputs(stderr,strcat("Open library: ",openLibName));
+      
+      if (de_library_is_read_only(openLibName) == FALSE) 
+      {
+        // we have an open library that is writable. Get the file path.
+        libPath = de_get_path_to_open_library(openLibName);
+        // fputs(stderr,strcat("Library path: ",libPath,"\n"));
+        
+        // Check if this is one of the inductor toolkit libraries, 
+        // otherwise assume that this is the user's working library
+        if (index (slashify(libPath), slashify(MUEHLHAUS_INDUCTOR_PDK_PATH)) == -1) 
+        {
+          // did not find PDK path in libraries's path, so this could be our workspace lib!
+          // fputs(stderr,strcat("Library path: ",libPath," does not contain PDK path: ", MUEHLHAUS_INDUCTOR_PDK_PATH, " \n"));
+          UserLibName = openLibName; 
+        }
+      } else {
+        // fputs(stderr," -> read only");
+      }
+  }
+  
+  return UserLibName;
+}
+
+
+defun getModelName()
+// name for scs and Touchstone model output
+{
+
+  decl Prefix = Muehlhaus_read_string("/inductor_toolkit/layoutname.csv");
+  // the next items are indeed from the DATA directory, where the sweep control files are located
+  
+  // check if inductor or tranformer
+  decl isInductor = (Muehlhaus_read_string("/inductor_toolkit/mode.csv") == "inductor");
+
+  decl N,N1,N2,w,s,dout, Ltarget;
+  
+  if (isInductor) {
+    N=Muehlhaus_get_real_from_csv("/data/inductor_params_final.csv", "N",0);
+    w=Muehlhaus_get_real_from_csv("/data/inductor_params_final.csv", "w",0);
+    s=Muehlhaus_get_real_from_csv("/data/inductor_params_final.csv", "s",0);
+    dout=Muehlhaus_get_real_from_csv("/data/inductor_params_final.csv", "dout",0);
+    Ltarget = val(Muehlhaus_read_string("/inductor_toolkit/Ltarget.csv"));
+  } else {
+     // get best sweep result
+    N1=Muehlhaus_read_var("/inductor_toolkit/N1.csv",0);
+    N2=Muehlhaus_read_var("/inductor_toolkit/N2.csv",0);
+    w=Muehlhaus_read_var("/inductor_toolkit/w.csv",0);
+    s=Muehlhaus_read_var("/inductor_toolkit/s.csv",0);
+    dout=Muehlhaus_read_var("/inductor_toolkit/dout.csv",0);
+    Ltarget=Muehlhaus_read_var("/inductor_toolkit/Lnom.csv",0);
+  }
+    
+  decl direction_string = "";
+
+  decl Ltarget_string;
+  decl L_full_nH = floor(Ltarget*1e9);
+  decl L_frac_nH = Ltarget*1e9 - L_full_nH;
+  if (L_full_nH > 0)
+  {
+    Ltarget_string = sprintf("%.0fn%.0f", L_full_nH, 10*L_frac_nH);
+  } else {
+   // use 2 decimal digits for small L values
+    Ltarget_string = sprintf("%.0fn%.0f", L_full_nH, 100*L_frac_nH);
+  }
+  
+  decl return_name;
+
+  if (isInductor) {
+    // for inductor some names, we might need quarter turns
+    
+    decl N_for_outputname;
+    if  (N - int(N) < 0.1) {
+       N_for_outputname = sprintf("%i", N);
+    } else {
+       N_for_outputname = sprintf("%.0f", N);  // don't create "." in scs output file !
+       if ((N - int(N) >= 0.1) && (N - int(N) < 0.4)) direction_string="_90deg";
+       if ((N - int(N) >= 0.4) && (N - int(N) < 0.65)) direction_string="_180deg";
+       if ((N - int(N) >= 0.65) && (N - int(N) < 0.85)) direction_string="_270deg";
+    };
+    return_name = strcat(Prefix,"_", Ltarget_string, "_N",N_for_outputname, direction_string, "_w",identify_value(round(w)),"_s",identify_value(round(s)),"_d",identify_value(round(dout)));
+
+  } else {
+    // transformer name
+    return_name = strcat(Prefix,"_", Ltarget_string, "_Np",identify_value(N1), "_Ns",identify_value(N2), "_w",identify_value(round(w)),"_s",identify_value(round(s)),"_d",identify_value(round(dout)));
+
+  }
+  
+  return return_name;
+}
+
+
+
+
+defun close_open_schematic () {
+
+  // Saves all designs and then closes all schamtic & layout windows  
+  if (save_all_designs_on_simulate) de_save_all_designs();
+  if (close_all_designs_on_simulate) de_close_all();
+
+}
+
+
+defun open_cellview_window (libName,cellName,viewName)
+// open the schematic/layout in existing window
+{
+
+  // close schematic that we left open
+  close_open_schematic();
+  
+  
+  decl testme = de_bring_view_to_top_or_open_new_window(libName, cellName,viewName , 3);
+  fputs(stderr,strcat ("Open schematic ", cellName, ":", identify_value(testme)));
+  
+  decl context = de_find_design_context_from_name(sprintf("%s:%s:%s", libName,cellName,viewName));
+  if (context != NULL) return context;
+  else { 
+    fputs(stderr,"Could not find design context"); 
+    return NULL; 
+  }
+}
+
+
+
+defun set_MeasEqn_model_name (sweeptype, numports)
+{
+  decl Modelname;
+  decl Outputname;
+
+  // fputs(stderr,strcat("Sweeptype: ", sweeptype));
+
+
+  /*
+  if (sweeptype="finetune")
+  {
+    // name of the model, needed to create the SnP output file with that name
+    Modelname = getModelName();
+    Outputname = sprintf("%s/data/%s.s%ip", slashify(getcwd()),Modelname,numports);
+  } else {
+    Outputname = "none";
+  }
+  */
+  
+  
+  Outputname = strcat(slashify(getcwd()), "/data/finetune_result.snp");
+
+  decl itemInfo0SP = de_edit_item("MeasModelName");
+  de_set_item_id(itemInfo0SP, "MeasModelName");
+  
+  de_set_item_parameters(itemInfo0SP, list(list(prm_ex("ads_simulation","VarFormEditcompPowerVar",prm_ex("ads_simulation","VarNameForm","Modelname"),prm_ex("ads_simulation","VarValueForm",strcat("\"", Outputname, "\""))))));
+  de_end_edit_item(itemInfo0SP);
+  de_end_edit_item(itemInfo0SP);
+  itemInfo0SP = de_free_item(itemInfo0SP);
+}
+
+
+
+defun set_MeasEqn_for_layout_option () 
+{
+ 
+  decl layoutname = Muehlhaus_read_string("/inductor_toolkit/layoutname.csv");
+
+  decl itemInfo0SP = de_edit_item("LayoutOption");
+  de_set_item_id(itemInfo0SP, "LayoutOption");
+  de_set_item_parameters(itemInfo0SP, list(list(prm_ex("ads_simulation","SingleTextLine",strcat("layout_option=\"", layoutname, "\"")))));
+  de_end_edit_item(itemInfo0SP);    
+  de_end_edit_item(itemInfo0SP);
+  itemInfo0SP = de_free_item(itemInfo0SP);
+  
+}
+
+defun switch_batch_blocks (sweeptype)
+{
+    // switch the batch simulation blocks between batch search and finetune 
+    de_deselect_all();
+    de_select_by_name("BatchSim_batch", 1);    
+    de_select_by_name("disptemp_batch", 1);    
+    if (sweeptype=="batch") { de_activate ();}  else { de_deactivate (); }
+    de_deselect_all();
+    de_select_by_name("BatchSim_finetune", 1);    
+    de_select_by_name("disptemp_finetune", 1);    
+    de_select_by_name("MeasModelName", 1);    
+    if (sweeptype=="finetune") { de_activate ();}  else { de_deactivate (); }
+    de_deselect_all();
+}
+
+
+defun change_frequency_block (newStopFreq)
+{
+  // change the frequency block and replace the stop frequency
+    de_deselect_all();
+    de_select_by_name("SP1", 1);  
+    decl itemInfo0SP = de_edit_item("SP1");
+    de_set_item_id(itemInfo0SP, "SP1");
+    de_set_item_parameters(itemInfo0SP, list(prm_ex("ads_simulation","StringAndReference","\"freq\""),prm_ex("ads_simulation","StdForm",""),prm_ex("ads_simulation","StdForm",""),prm_ex("ads_simulation","StdForm","0.1 GHz"),prm_ex("ads_simulation","StdForm",sprintf("%.2f GHz", newStopFreq)),prm_ex("ads_simulation","StdForm","100 MHz"),prm_ex("ads_simulation","StdForm",""),prm_ex("ads_simulation","StdForm",""),prm_ex("ads_simulation","StdForm",""),prm_ex("ads_simulation","StdForm",""),prm_ex("ads_simulation","StdForm",""),prm_ex("ads_simulation","StdForm",""),prm_ex("ads_simulation","StdForm",""),prm_ex("ads_simulation","StdForm","LINEAR START STEP "),list(prm_ex("ads_simulation","StdForm","")),prm_ex("ads_simulation","OutputPlan_BooleanYes"),prm_ex("ads_simulation","SingleTextLineInteger","2"),list(prm_ex("ads_simulation","StringAndReference","")),prm_ex("ads_simulation","StdForm","yes"),prm_ex("ads_simulation","StdForm","no"),prm_ex("ads_simulation","StdForm","no"),prm_ex("ads_simulation","StdForm",""),prm_ex("ads_simulation","StdForm","1e-4"),prm_ex("ads_simulation","No"),prm_ex("ads_simulation","StdForm","1"),prm_ex("ads_simulation","StdForm",""),prm_ex("ads_simulation","StdForm","2"),prm_ex("ads_simulation","No"),prm_ex("ads_simulation","NoiseSortOff"),prm_ex("ads_simulation","StdForm",""),prm_ex("ads_simulation","StdForm","1.0 Hz"),prm_ex("ads_simulation","StdForm"," "),prm_ex("ads_simulation","DeviceOpNone"),prm_ex("ads_simulation","StdForm",""),prm_ex("ads_simulation","StdForm",""),prm_ex("ads_simulation","OtherForm",""),prm_ex("ads_simulation","OutputPlan_BooleanYes"),prm_ex("ads_simulation","SingleTextLineInteger","2"),list(prm_ex("ads_simulation","StringAndReference","")),list(prm_ex("ads_simulation","StringAndReference","")),prm_ex("ads_simulation","StdForm","")));
+    de_end_edit_item(itemInfo0SP);
+    de_end_edit_item(itemInfo0SP);
+    itemInfo0SP = de_free_item(itemInfo0SP);
+}
+
+
+defun prepare_sweep_schematic (sweeptype)
+{
+  // inductor mode only
+  // open schematic for the given model, and then set the proper parameters
+  
+
+  if (sweeptype=="finetune") 
+  {
+    // what we have now is assumed to be the final data also
+    // copy inductor_params_finetune.csv to inductor_params_final.csv
+    gfile_copy ( strcat(getcwd(),"/data/inductor_params_finetune.csv"),   strcat(getcwd(),"/data/inductor_params_final.csv"));
+
+    // Now, we can overwrite the finetune file for another possible iteration
+  } 
+  
+  
+  // what inductor option do we have?
+  decl withShield  = (Muehlhaus_read_string("/inductor_toolkit/shield.csv") == "1");
+  decl withCentertap  = (Muehlhaus_read_string("/inductor_toolkit/centertap.csv") == "1");
+  decl required_emModel = Muehlhaus_read_string("/inductor_toolkit/emModel.csv");
+
+
+ if (sweeptype=="finetune") 
+  {  
+    // check if we have a separate cell with emModel for finetune
+    // prefix for finetune cell is defined in preferences.ael
+    decl finetune_model = strcat(finetune_emModel_cell_prefix, required_emModel);
+    if (de_cellview_exists("Inductor_EM_Models_lib", finetune_model ,"emModel"))
+    {
+      // dedicated finetune model exists -> use that
+      fputs(stderr,strcat("Found dedicated finetune emModel: ", finetune_model));
+      required_emModel = finetune_model;
+    }
+  }
+
+   
+    
+  if (!withShield) {  
+    if (!withCentertap) {
+      // no shield, no center tap = 2 ports
+      open_cellview_window ("Inductor_EM_Models_lib","batchsim_2port","schematic");
+    
+      
+      // set output dataset 
+      if (sweeptype=="batch") 
+      { 
+        de_set_simulation_dataset("batchsim");
+      } else {
+        de_set_simulation_dataset("finetune");
+      }
+
+      // switch the batch simulation blocks between batch search and finetune 
+      switch_batch_blocks (sweeptype);
+      // Set model name for Touchstone output from data display
+      set_MeasEqn_model_name (sweeptype, 2); // create 2-port output
+      // set layout option, so that it appears in simulation output data
+      set_MeasEqn_for_layout_option (); 
+
+      // delete the existing emModel instance and insert the required emModel instance
+      de_select_by_name("X1", 1);    
+      de_delete();
+      // insert new
+      decl itemInfo0SP = de_init_item(strcat("Inductor_EM_Models_lib:", required_emModel ,":symbol"));
+      de_place_item(itemInfo0SP, 0, 0);
+      itemInfo0SP = de_free_item(itemInfo0SP);
+      // set parameters
+      decl itemInfo0SP = de_edit_item("X1");
+      de_set_item_id(itemInfo0SP, "X1");
+      de_set_item_parameters(itemInfo0SP, list(prm_ex("Inductor_EM_Models_lib","StdForm","w um"),prm_ex("Inductor_EM_Models_lib","StdForm","s um"),prm_ex("Inductor_EM_Models_lib","StdForm","dout um"),prm_ex("Inductor_EM_Models_lib","StdForm","N")));
+      de_end_edit_item(itemInfo0SP);
+      de_end_edit_item(itemInfo0SP);
+      
+      /*
+      // this would be the code to SWAP the component, instead of deleting it and putting another component instance back in
+      // however, this code doesn't work as expected
+      de_set_swap_template_instance(required_emModel);    
+      fputs(stderr,strcat("Swapping X1 with new model: ", required_emModel));
+      de_swap_instances(FALSE); // update instance, keep the ID "X1"
+      */
+      
+      
+      de_deselect_all();
+    
+    
+    } else {
+      // no shield, with center tap = 3 ports
+
+      open_cellview_window("Inductor_EM_Models_lib", "batchsim_3port_centertap", "schematic");
+
+      // set output dataset 
+      if (sweeptype=="batch") 
+      { 
+        de_set_simulation_dataset("batchsim");
+      } else {
+        de_set_simulation_dataset("finetune");
+      }
+
+
+      // switch the batch simulation blocks between batch search and finetune 
+      switch_batch_blocks (sweeptype);
+      // Set model name for Touchstone output from data display
+      set_MeasEqn_model_name (sweeptype, 3); // create 3-port output
+      // set layout option, so that it appears in simulation output data
+      set_MeasEqn_for_layout_option (); 
+
+      
+      // delete the existing emModel instance and insert the required emModel instance
+      de_select_by_name("X1", 1);    
+      de_select_by_name("X2", 1);    
+      de_select_by_name("X3", 1);    
+      de_delete();
+      // insert new
+      decl itemInfo0SP = de_init_item(strcat("Inductor_EM_Models_lib:", required_emModel ,":symbol"));
+      de_place_item(itemInfo0SP, 8.75, -0.750);
+      itemInfo0SP = de_free_item(itemInfo0SP);
+      decl itemInfo0SP = de_init_item(strcat("Inductor_EM_Models_lib:", required_emModel ,":symbol"));
+      de_place_item(itemInfo0SP, 8.75, -4);
+      itemInfo0SP = de_free_item(itemInfo0SP);
+      decl itemInfo0SP = de_init_item(strcat("Inductor_EM_Models_lib:", required_emModel ,":symbol"));
+      de_place_item(itemInfo0SP, 8.75, -7.750);
+      itemInfo0SP = de_free_item(itemInfo0SP);
+      // set parameters
+      decl itemInfo0SP = de_edit_item("X1");
+      de_set_item_id(itemInfo0SP, "X1");
+      de_set_item_parameters(itemInfo0SP, list(prm_ex("Inductor_EM_Models_lib","StdForm","w um"),prm_ex("Inductor_EM_Models_lib","StdForm","s um"),prm_ex("Inductor_EM_Models_lib","StdForm","dout um"),prm_ex("Inductor_EM_Models_lib","StdForm","N")));
+      de_end_edit_item(itemInfo0SP);
+      de_end_edit_item(itemInfo0SP);
+      decl itemInfo0SP = de_edit_item("X2");
+      de_set_item_id(itemInfo0SP, "X2");
+      de_set_item_parameters(itemInfo0SP, list(prm_ex("Inductor_EM_Models_lib","StdForm","w um"),prm_ex("Inductor_EM_Models_lib","StdForm","s um"),prm_ex("Inductor_EM_Models_lib","StdForm","dout um"),prm_ex("Inductor_EM_Models_lib","StdForm","N")));
+      de_end_edit_item(itemInfo0SP);
+      de_end_edit_item(itemInfo0SP);
+      decl itemInfo0SP = de_edit_item("X3");
+      de_set_item_id(itemInfo0SP, "X3");
+      de_set_item_parameters(itemInfo0SP, list(prm_ex("Inductor_EM_Models_lib","StdForm","w um"),prm_ex("Inductor_EM_Models_lib","StdForm","s um"),prm_ex("Inductor_EM_Models_lib","StdForm","dout um"),prm_ex("Inductor_EM_Models_lib","StdForm","N")));
+      de_end_edit_item(itemInfo0SP);
+      de_end_edit_item(itemInfo0SP);
+      
+
+
+    }
+  
+  } else {
+    // with ground shield
+    if (!withCentertap) {
+      // with shield, no center tap = 3 port EM data,
+      // but for output we restrict that to 2-port data
+    
+      open_cellview_window("Inductor_EM_Models_lib", "batchsim_3port_groundshield", "schematic");
+      
+      // set output dataset 
+      if (sweeptype=="batch") 
+      { 
+        de_set_simulation_dataset("batchsim");
+      } else {
+        de_set_simulation_dataset("finetune");
+      }
+      
+
+      // switch the batch simulation blocks between batch search and finetune 
+      switch_batch_blocks (sweeptype);
+      // Set model name for Touchstone output from data display
+      set_MeasEqn_model_name (sweeptype, 2); // create 3-port output
+      // set layout option, so that it appears in simulation output data
+      set_MeasEqn_for_layout_option (); 
+
+      // delete the existing emModel instance and insert the required emModel instance
+      de_select_by_name("X1", 1);    
+      de_delete();
+      // insert new
+      decl itemInfo0SP = de_init_item(strcat("Inductor_EM_Models_lib:", required_emModel ,":symbol"));
+      de_place_item(itemInfo0SP, 0, 0);
+      itemInfo0SP = de_free_item(itemInfo0SP);
+      // set parameters
+      decl itemInfo0SP = de_edit_item("X1");
+      de_set_item_id(itemInfo0SP, "X1");
+      de_set_item_parameters(itemInfo0SP, list(prm_ex("Inductor_EM_Models_lib","StdForm","w um"),prm_ex("Inductor_EM_Models_lib","StdForm","s um"),prm_ex("Inductor_EM_Models_lib","StdForm","dout um"),prm_ex("Inductor_EM_Models_lib","StdForm","N"),prm_ex("Inductor_EM_Models_lib","StdForm","wshield um")));
+      de_end_edit_item(itemInfo0SP);
+      de_end_edit_item(itemInfo0SP);
+
+   
+    
+    
+    } else {
+      // with shield, with center tap = 4 port EM data,
+      // but we only output 3-port data with port 4 grounded
+
+      open_cellview_window("Inductor_EM_Models_lib", "batchsim_4port_centertap_groundshield", "schematic");
+
+      // set output dataset 
+      if (sweeptype=="batch") 
+      { 
+        de_set_simulation_dataset("batchsim");
+      } else {
+        de_set_simulation_dataset("finetune");
+      }
+
+
+      // switch the batch simulation blocks between batch search and finetune 
+      switch_batch_blocks (sweeptype);
+      // Set model name for Touchstone output from data display
+      set_MeasEqn_model_name (sweeptype, 3); // create 3-port output
+      // set layout option, so that it appears in simulation output data
+      set_MeasEqn_for_layout_option (); 
+
+
+      // delete the existing emModel instance and insert the required emModel instance
+      de_select_by_name("X1", 1);    
+      de_select_by_name("X2", 1);    
+      de_select_by_name("X3", 1);    
+      de_delete();
+      // insert new
+      decl itemInfo0SP = de_init_item(strcat("Inductor_EM_Models_lib:", required_emModel ,":symbol"));
+      de_place_item(itemInfo0SP, 8.625, -0.250);
+      itemInfo0SP = de_free_item(itemInfo0SP);
+      decl itemInfo0SP = de_init_item(strcat("Inductor_EM_Models_lib:", required_emModel ,":symbol"));
+      de_place_item(itemInfo0SP, 8.625, -3.875);
+      itemInfo0SP = de_free_item(itemInfo0SP);
+      decl itemInfo0SP = de_init_item(strcat("Inductor_EM_Models_lib:", required_emModel ,":symbol"));
+      de_place_item(itemInfo0SP, 8.625, -7.750);
+      itemInfo0SP = de_free_item(itemInfo0SP);
+      // set parameters
+      decl itemInfo0SP = de_edit_item("X1");
+      de_set_item_id(itemInfo0SP, "X1");
+      de_set_item_parameters(itemInfo0SP, list(prm_ex("Inductor_EM_Models_lib","StdForm","w um"),prm_ex("Inductor_EM_Models_lib","StdForm","s um"),prm_ex("Inductor_EM_Models_lib","StdForm","dout um"),prm_ex("Inductor_EM_Models_lib","StdForm","N"),prm_ex("Inductor_EM_Models_lib","StdForm","wshield um")));
+      de_end_edit_item(itemInfo0SP);
+      de_end_edit_item(itemInfo0SP);
+      decl itemInfo0SP = de_edit_item("X2");
+      de_set_item_id(itemInfo0SP, "X2");
+      de_set_item_parameters(itemInfo0SP, list(prm_ex("Inductor_EM_Models_lib","StdForm","w um"),prm_ex("Inductor_EM_Models_lib","StdForm","s um"),prm_ex("Inductor_EM_Models_lib","StdForm","dout um"),prm_ex("Inductor_EM_Models_lib","StdForm","N"),prm_ex("Inductor_EM_Models_lib","StdForm","wshield um")));
+      de_end_edit_item(itemInfo0SP);
+      de_end_edit_item(itemInfo0SP);
+      decl itemInfo0SP = de_edit_item("X3");
+      de_set_item_id(itemInfo0SP, "X3");
+      de_set_item_parameters(itemInfo0SP, list(prm_ex("Inductor_EM_Models_lib","StdForm","w um"),prm_ex("Inductor_EM_Models_lib","StdForm","s um"),prm_ex("Inductor_EM_Models_lib","StdForm","dout um"),prm_ex("Inductor_EM_Models_lib","StdForm","N"),prm_ex("Inductor_EM_Models_lib","StdForm","wshield um")));
+      de_end_edit_item(itemInfo0SP);
+      de_end_edit_item(itemInfo0SP);
+    
+    }
+  }
+
+  // set simulation data display
+  if (sweeptype=="batch") { de_set_simulation_datadisp("evaluate_batch_sweep");}  else { de_set_simulation_datadisp("evaluate_finetune"); }    
+
+}
+
+
+defun prepare_transformer_schematic ()
+{
+  // This does the batch sweep for TRANSFORMER models. This has only one run, no separate batch and fine tune.
+
+  decl withCentertap  = (Muehlhaus_read_string("/inductor_toolkit/centertap.csv") == "1");
+  decl required_emModel = Muehlhaus_read_string("/inductor_toolkit/emModel.csv");
+  decl mode = Muehlhaus_read_string("/inductor_toolkit/mode.csv");
+  decl display_template_name = "";
+
+  // terminations primary and secondary
+  decl R1_string = sprintf("%.2f",Muehlhaus_read_var("/inductor_toolkit/R1.csv"));
+  decl R2_string = sprintf("%.2f",Muehlhaus_read_var("/inductor_toolkit/R2.csv"));
+  
+
+  if (!withCentertap) {
+    // no shield, no center tap = 2 ports
+    de_info("Transformers without center tap are not implemented yet.");
+
+  } else {
+  
+    open_cellview_window ("Inductor_EM_Models_lib","batchsim_transformer_6port","schematic");
+
+    // delete the existing emModel instance and insert the required emModel instance
+    de_select_by_name("X1", 1);    
+    de_delete();
+    de_select_by_name("X2", 1);    
+    de_delete();
+    de_select_by_name("X3", 1);    
+    de_delete();
+    de_select_by_name("X4", 1);    
+    de_delete();
+
+
+    decl itemInfo0SP = de_init_item(strcat("Inductor_EM_Models_lib:", required_emModel ,":symbol"));
+    de_place_item(itemInfo0SP, 8, 6);
+    itemInfo0SP = de_free_item(itemInfo0SP);
+
+    decl itemInfo0SP = de_init_item(strcat("Inductor_EM_Models_lib:", required_emModel ,":symbol"));
+    de_place_item(itemInfo0SP, 14, 6);
+    itemInfo0SP = de_free_item(itemInfo0SP);
+
+    decl itemInfo0SP = de_init_item(strcat("Inductor_EM_Models_lib:", required_emModel ,":symbol"));
+    de_place_item(itemInfo0SP, 8, 2);
+    itemInfo0SP = de_free_item(itemInfo0SP);
+
+    decl itemInfo0SP = de_init_item(strcat("Inductor_EM_Models_lib:", required_emModel ,":symbol"));
+    de_place_item(itemInfo0SP, 14, 2);
+    itemInfo0SP = de_free_item(itemInfo0SP);
+
+
+    decl itemInfo0SP = de_edit_item("IMPEDANCES");
+    de_set_item_parameters(itemInfo0SP, list(list(
+      prm_ex("ads_datacmps","VarFormStdForm",prm_ex("ads_datacmps","VarNameForm","R1"), prm_ex("ads_datacmps","VarValueForm",R1_string)),
+      prm_ex("ads_datacmps","VarFormStdForm",prm_ex("ads_datacmps","VarNameForm","R2"), prm_ex("ads_datacmps","VarValueForm",R2_string))) ));
+
+    de_end_edit_item(itemInfo0SP);
+    de_end_edit_item(itemInfo0SP);
+    
+    // set emModel parameters, these are different between interleaved and overlay
+  
+    if (mode == "interleaved") {
+
+      // set parameters
+      decl itemInfo0SP = de_edit_item("X1");
+      de_set_item_parameters(itemInfo0SP, list(
+        prm_ex("Inductor_EM_Models_lib","StdForm","w um"),
+        prm_ex("Inductor_EM_Models_lib","StdForm","s um"),
+        prm_ex("Inductor_EM_Models_lib","StdForm","dout um"),
+        prm_ex("Inductor_EM_Models_lib","StdForm","N1"),
+        prm_ex("Inductor_EM_Models_lib","StdForm","N2")));
+
+      de_end_edit_item(itemInfo0SP);
+      de_end_edit_item(itemInfo0SP);
+
+
+      decl itemInfo0SP = de_edit_item("X2");
+      de_set_item_parameters(itemInfo0SP, list(
+        prm_ex("Inductor_EM_Models_lib","StdForm","w um"),
+        prm_ex("Inductor_EM_Models_lib","StdForm","s um"),
+        prm_ex("Inductor_EM_Models_lib","StdForm","dout um"),
+        prm_ex("Inductor_EM_Models_lib","StdForm","N1"),
+        prm_ex("Inductor_EM_Models_lib","StdForm","N2")));
+
+      de_end_edit_item(itemInfo0SP);
+      de_end_edit_item(itemInfo0SP);
+
+
+      decl itemInfo0SP = de_edit_item("X3");
+      de_set_item_parameters(itemInfo0SP, list(
+        prm_ex("Inductor_EM_Models_lib","StdForm","w um"),
+        prm_ex("Inductor_EM_Models_lib","StdForm","s um"),
+        prm_ex("Inductor_EM_Models_lib","StdForm","dout um"),
+        prm_ex("Inductor_EM_Models_lib","StdForm","N1"),
+        prm_ex("Inductor_EM_Models_lib","StdForm","N2")));
+
+      de_end_edit_item(itemInfo0SP);
+      de_end_edit_item(itemInfo0SP);
+      
+
+      decl itemInfo0SP = de_edit_item("X4");
+      de_set_item_parameters(itemInfo0SP, list(
+        prm_ex("Inductor_EM_Models_lib","StdForm","w um"),
+        prm_ex("Inductor_EM_Models_lib","StdForm","s um"),
+        prm_ex("Inductor_EM_Models_lib","StdForm","dout um"),
+        prm_ex("Inductor_EM_Models_lib","StdForm","N1"),
+        prm_ex("Inductor_EM_Models_lib","StdForm","N2")));
+
+      de_end_edit_item(itemInfo0SP);
+      de_end_edit_item(itemInfo0SP);
+      
+
+    }  
+
+    if (mode == "overlay") {
+
+      // set parameters
+      decl itemInfo0SP = de_edit_item("X1");
+      de_set_item_parameters(itemInfo0SP, list(
+        prm_ex("Inductor_EM_Models_lib","StdForm","w um"),
+        prm_ex("Inductor_EM_Models_lib","StdForm","s um"),
+        prm_ex("Inductor_EM_Models_lib","StdForm","dout um")));
+
+      de_end_edit_item(itemInfo0SP);
+      de_end_edit_item(itemInfo0SP);
+
+
+      decl itemInfo0SP = de_edit_item("X2");
+      de_set_item_parameters(itemInfo0SP, list(
+        prm_ex("Inductor_EM_Models_lib","StdForm","w um"),
+        prm_ex("Inductor_EM_Models_lib","StdForm","s um"),
+        prm_ex("Inductor_EM_Models_lib","StdForm","dout um")));
+
+      de_end_edit_item(itemInfo0SP);
+      de_end_edit_item(itemInfo0SP);
+
+
+      decl itemInfo0SP = de_edit_item("X3");
+      de_set_item_parameters(itemInfo0SP, list(
+        prm_ex("Inductor_EM_Models_lib","StdForm","w um"),
+        prm_ex("Inductor_EM_Models_lib","StdForm","s um"),
+        prm_ex("Inductor_EM_Models_lib","StdForm","dout um")));
+
+      de_end_edit_item(itemInfo0SP);
+      de_end_edit_item(itemInfo0SP);
+
+      decl itemInfo0SP = de_edit_item("X4");
+      de_set_item_parameters(itemInfo0SP, list(
+        prm_ex("Inductor_EM_Models_lib","StdForm","w um"),
+        prm_ex("Inductor_EM_Models_lib","StdForm","s um"),
+        prm_ex("Inductor_EM_Models_lib","StdForm","dout um")));
+
+      de_end_edit_item(itemInfo0SP);
+      de_end_edit_item(itemInfo0SP);
+
+    }  
+
+
+    // set template for transformer
+    display_template_name = "\"evaluate_transformer\"";
+
+   
+    // set display template
+    decl itemInfo0SP=de_edit_item("disptemp");
+    de_set_item_parameters(itemInfo0SP, list(list(prm_ex("ads_simulation","StringAndReference",display_template_name))));
+    de_end_edit_item(itemInfo0SP);
+    itemInfo0SP=de_free_item(itemInfo0SP);
+
+
+    // Set model name for Touchstone output from data display
+    set_MeasEqn_model_name ("", 6); 
+
+  
+  }
+
+}
+
+
+
+defun copy_lumpedmodel_cell_to_user_library (libraryname, withCentertap)
+{
+  // copy lumped model cell from inductor toolkit library to user's work library
+  
+  decl circuitmodel;
+  if (withCentertap) 
+  {
+    circuitmodel = "circuitmodel_3port"; 
+  } else {
+    circuitmodel = "circuitmodel_2port";
+  }  
+    
+  // check if cell already exists is user's library
+  decl cellNameList = de_get_cells_in_library(libraryname);
+  if(!member(circuitmodel, cellNameList)) 
+  {
+    // does not exits -> we have to copy it
+    de_copy_cell( "Inductor_EM_Models_lib", circuitmodel, libraryname, circuitmodel);
+  }
+
+}
+
+
+defun Update_EM_Pin_Layers (context)
+{
+ 
+  decl pinIter = db_create_pin_iter(context);
+
+  decl spiral_layerID = db_layerid(spiral_layer);  // from technology.ael
+  decl shield_layerID = db_layerid(pgs_layer);
+  decl crossover_layerID = db_layerid(crossover_layer);
+  decl underpass_layerID = db_layerid(underpass_layer);
+  decl old_layerID;
+  decl needs_save = FALSE;
+
+  de_deselect_all();
+  
+  
+  // identify special case: patterned ground shield inductors
+  decl cellname = db_get_cell_name(context);
+  decl is_centertap = (index(cellname, "centertap") >= 0);
+  decl is_groundshield = (index(cellname, "groundshield") >= 0);
+  decl is_IHP = (index(cellname, "IHP") >= 0);
+  
+  // identify special case: transformer overlay 2:1
+  decl is_overlay_2to1 = (index(cellname, "balun2to1_overlay") >= 0);
+  
+  decl PinNumber;
+  decl TargetLayerID;
+  
+  for (; db_pin_iter_is_valid(pinIter);
+      pinIter = db_pin_iter_get_next(pinIter))
+  {
+
+      PinNumber = db_get_pin_term_number (pinIter);
+      TargetLayerID = spiral_layerID;  // normal cases
+      
+      // For PGS, we need a different layer, this is handled by code below.
+      if  ((PinNumber == 3) &&  (is_groundshield) && (!is_centertap)) TargetLayerID=shield_layerID;
+      if  ((PinNumber == 4) &&  (is_groundshield) && ( is_centertap)) TargetLayerID=shield_layerID;
+      
+      // Balun 2:1 overlay
+      if ((PinNumber == 6) &&  (is_overlay_2to1)) TargetLayerID=underpass_layerID;
+      if ((PinNumber == 5) &&  (is_overlay_2to1)) TargetLayerID=crossover_layerID;
+      
+      // IHP ind2 and ind3
+      // valid for emModel default params with N=2: LA and LB on crossover, center tap on spiral layer
+      if ((is_IHP) && ((PinNumber == 1) || (PinNumber == 2))) TargetLayerID=crossover_layerID;
+      
+      // NOTE: the XML emState files do NOT make this detection, and change PGS pin to spiral layer
+      // This is OK per Info from Filip Demuynck : "It’s what is defined in the layout for the ports that will be passed to the EM solver."
+      //
+      // emSetup/emModel dialog will auto-update from layout pin layers, then SAVE to emSetup/emModel
+     
+
+      db_select_pin(pinIter, TRUE);
+      old_layerID = db_get_pin_snap_layerid(pinIter);
+    
+      if (old_layerID != TargetLayerID) { 
+         // pin layer must be updated
+         
+         de_move_to_layerid(context, TargetLayerID);
+         needs_save = TRUE;
+         
+         fputs(stderr, strcat("Update pin ", db_get_pin_term_name(pinIter), ": ",  db_get_layout_layerid_name(context, old_layerID), " -> ", db_get_layout_layerid_name(context, spiral_layerID)));
+   
+      } else {
+         // up to date, no need to change 
+         fputs(stderr, strcat("Pin layer ", db_get_pin_term_name(pinIter), " is up-to-date"));
+      }
+          
+      db_select_pin(pinIter, FALSE);
+  }
+  
+  if (needs_save) {
+    // pin layer changed, save cell view
+    fputs(stderr, "Pin layer changed -> needs save");
+  
+  }
+  
+  // function retrun result (needs save or not)
+  return needs_save;
+}  
+
+
+
+defun Update_EM_Pin_Positions (context)
+{
+
+   // Check if EM pins are at the same position as the layout artwork pins, and move them if needed
+   // Query referenced tech library (!) because we will get wrong results if we query the EM model library itself
+     
+   decl db_resolution = get_referenced_lib_database_resolution("Inductor_EM_Models_lib");
+   fputs(stderr, strcat("Reference library database unit = ", identify_value(db_resolution)));
+   
+   decl InductorCount = 0;
+   decl ArtworkPinList_x = list();
+   decl ArtworkPinList_y = list();
+   decl ArtworkPinNameList = list();
+  
+   decl EMPinList_x = list(); // List of pin x coordinates in database units
+   decl EMPinList_y = list(); // List of pin y coordinates in database units
+   decl EMPinNumberList = list(); // List of pin numbers
+
+   decl needs_save = FALSE;
+      
+  
+   // iterate of artwork cell instances, to find the artwork pin locations
+   decl instIter = db_create_inst_iter (context);
+   for ( ; db_inst_iter_is_valid(instIter); instIter = db_inst_iter_get_next(instIter))
+   {
+     
+      decl compName = db_get_instance_component_name (instIter);
+      decl instName = db_get_instance_name (instIter);
+
+      fputs(stderr, strcat ("Component: ", compName, " [", instName,"]"));
+
+
+      decl instPinIter = db_create_inst_pin_iter(instIter);
+      for (; db_inst_pin_iter_is_valid(instPinIter);instPinIter = db_inst_pin_iter_get_next(instPinIter))
+      {
+            decl snapCoordH = db_get_inst_pin_snap_point(instPinIter);
+            decl snapX = db_get_x(snapCoordH);
+            decl snapY = db_get_y(snapCoordH);           
+
+            decl dbInstTerm = db_get_inst_pin_inst_term(instPinIter);
+            decl termName = db_get_inst_term_name(dbInstTerm);
+            decl termNum  = termName;  // store as string
+
+            ArtworkPinList_x = append(ArtworkPinList_x, list(snapX));
+            ArtworkPinList_y = append(ArtworkPinList_y, list(snapY));
+            ArtworkPinNameList = append(ArtworkPinNameList, list(termNum)); // assume we have only numbers, no names
+      }     
+
+      InductorCount = InductorCount +1;  
+   }
+    
+   
+     
+   // iterate over EM pins
+   decl pinIter = db_create_pin_iter (context);
+   for ( ; db_pin_iter_is_valid(pinIter); pinIter = db_pin_iter_get_next(pinIter))
+   {
+      decl dbPin = db_pin_iter_get_pin(pinIter);
+      decl PinNumber = db_get_pin_term_number (dbPin);
+      EMPinNumberList = append (EMPinNumberList, list (PinNumber));
+
+      // get pin coordinates
+      decl snapCoordH = db_get_pin_snap_point(pinIter);
+      decl snapX = db_get_x(snapCoordH);
+      decl snapY = db_get_y(snapCoordH);
+      EMPinList_x = append (EMPinList_x, list(snapX));
+      EMPinList_y = append (EMPinList_y, list(snapY));
+  
+       
+   }
+
+
+   decl ArtworkPinListSize  = listlen(ArtworkPinList_x);  // y has same number of items
+   decl EMPinListSize  = listlen(EMPinList_x);  // y has same number of items
+
+
+   // Check that we only have one inductor cell, and matching pin count
+   if ((InductorCount==1) && (ArtworkPinListSize==EMPinListSize))
+   {
+   
+     decl n;
+     decl Artwork_x, Artwork_y, EM_x, EM_y, EM_PinNum, ArtworkPinIndex, Artwork_PinName;
+     decl dx, dy;
+     decl EMPinNum, EMPinIndex, EMPinName;
+          
+     // iterate over artwork pin list, and find matching EM pins
+     for ( n=0; n <ArtworkPinListSize; n++)
+     {
+        // Use pin number to get matching artwork pin
+
+        ArtworkPinIndex = n;
+        Artwork_x = nth(ArtworkPinIndex, ArtworkPinList_x);
+        Artwork_y = nth(ArtworkPinIndex, ArtworkPinList_y);
+        Artwork_PinName = nth(ArtworkPinIndex, ArtworkPinNameList);
+        // fputs(stderr, strcat ("Instance Pin ", identify_value(Artwork_PinName), " location x:", identify_value(Artwork_x/db_resolution), " y:", identify_value(Artwork_y/db_resolution)));
+
+        // find the index that belongs to this pin number
+        EMPinNum = int(val(Artwork_PinName)); // used to find it in the list  
+        EMPinIndex = find_index (EMPinNum, EMPinNumberList); 
+
+        if (EMPinIndex != NULL) {
+
+          EM_x = nth(EMPinIndex, EMPinList_x);
+          EM_y = nth(EMPinIndex, EMPinList_y);
+
+          // fputs(stderr, strcat (EMPinName, " x:", identify_value(EM_x/db_resolution), " y:", identify_value(EM_y/db_resolution)));
+
+          // calculate offset
+          dx = Artwork_x - EM_x;
+          dy = Artwork_y - EM_y;
+
+          // if offset <> 0 then move
+          if ((dx!=0) || (dy!=0))
+          {
+            EMPinName = sprintf("P%i",EMPinNum);  // used for pin selection
+            fputs(stderr, strcat ("Fix pin offset for ",EMPinName ));
+
+            de_deselect_all();
+            de_select_by_name(EMPinName, 1);    
+            de_move(1.0 * dx/db_resolution, 1.0*dy/db_resolution);   // make sure we pass real, not rounded to integer
+            de_deselect_all();
+
+            needs_save = TRUE;
+          } else    {
+            fputs(stderr, strcat ("Pin position ",EMPinName," is up-to-date" ));
+          }
+        } else {
+            fputs(stderr, strcat ("Could not get list index for ",EMPinName," in list ", identify_value(EMPinNumberList)));
+        }
+
+     }  
+   }  else {
+     fputs(stderr, "WARNING: EM pin count does not match artwork pin count, skipped");
+   }
+  
+  // function retrun result (needs save or not)
+  return needs_save;
+}
+
+
+defun Update_EM_Pins_All ()
+{
+    // iterate over emModels in Inductor_EM_Models_lib and check layout pins
+    
+    // re-load technology file
+    load(strcat(MUEHLHAUS_INDUCTOR_PDK_PATH, "configuration/technology"));
+    fputs(stderr,"Technology file reloaded");
+ 
+
+    // Query open libraries and find the workspace's library
+    // That workspace's library is the first writable library that is not in the PDK path.
+    decl libraryname = "Inductor_EM_Models_lib"; 
+
+
+    // check if cell's layout or schematic view already exists
+    decl cellNameList = de_get_cells_in_library(libraryname);
+    
+    // We have a list with cells in EM model library
+    // get list length
+    decl NumCells = listlen (cellNameList);
+    fputs(stderr, sprintf("Number of cells in library: %i", NumCells));
+    
+    decl i;
+    decl cellname;
+    decl aLayoutView;
+
+    // close open windows
+    de_close_all();
+
+    for ( i=0; i<NumCells; i++ )  
+    {
+      // get cell
+      cellname = nth(i,cellNameList); 
+      
+      // check if cell has layout view(s)
+      if (de_cellview_exists (libraryname, cellname, "layout"))
+      { 
+        fputs(stderr, sprintf("\nLayout view exists in cell %s", cellname));
+        // Check pins for this layout view
+   
+        // Get design context
+        decl designContext = open_cellview_window(libraryname,cellname, "layout");
+        if (designContext != NULL)
+        {
+
+          // we have design context, continue
+          // fputs(stderr,strcat("Design context valid: ", identify_value(designContext)));
+ 
+          if ((Update_EM_Pin_Layers(designContext)==TRUE) || (Update_EM_Pin_Positions(designContext)==TRUE)) 
+          {
+            // save without asking user
+            db_save_design_without_prompting(designContext);
+            
+          }
+          
+        } else {
+          fputs(stderr,"Error, design context NOT valid, skip");
+        }
+      
+      } else {
+        fputs(stderr, sprintf("\nNo layout view in cell %s", cellname));
+        // Nothing to do
+      }
+     
+    de_close_all();
+  
+    }
+}
+
+
+
+
+defun set_all_emModel_pin_layers ()
+{
+  // update Momentum pin layer in all emModel directories (all pins are on spiral_layer!)
+  
+  // base directory where we want to search for emModel cells
+  decl basedir = strcat(MUEHLHAUS_INDUCTOR_PDK_PATH, "Inductor_EM_Models_lib");
+
+  // get number and name of new layer for spiral
+  decl new_layerNum = spiral_layer;     // from technology.ael
+  decl new_layerID = db_layerid(new_layerNum);  
+  decl designContext = open_cellview_window("Inductor_EM_Models_lib", "emModel_octa","layout");
+  decl new_layerName = db_get_layout_layerid_name(designContext, new_layerID); 
+
+  fputs(stderr,"\nUpdating pin layer in emStateFile.xml");
+
+  
+  decl dirlist = scan_directory_for_dirs(basedir);
+  decl listsize = listlen(dirlist);
+  if (listsize>0)
+  {
+    decl i;
+    decl dirname;
+    for ( i=0; i < listsize; i++)
+    { 
+      // change frequency in emModel
+      dirname = strcat(basedir, "/", nth(i, dirlist),"/em%Model");
+      set_emStateFile_Pinlayer (dirname, new_layerNum, new_layerName);
+      // change frequency in emSetup
+      dirname = strcat(basedir, "/", nth(i, dirlist),"/em%Setup");
+      set_emStateFile_Pinlayer (dirname, new_layerNum, new_layerName);
+    }    
+    de_info(sprintf("emModel layouts updated,\npin positions updated,\nall pins moved to layer %s.\nemSetup and emModel statefiles updated.",new_layerName )); 
+
+  }
+
+}
+
+
+
+
+defun set_emStateFile_Pinlayer (modeldir, new_layerNum, new_layerName)
+// update the Momentum pin layer in the emStateFile 
+
+{
+  decl statefilename = strcat(modeldir, "/emStateFile.xml");
+  decl textlines = list();  // list to hold the lines of the file
+  decl fline;  // current line
+  decl MomentumPinShapeSection = FALSE;
+  decl MomentumLayerNum = FALSE;
+  decl MomentumLayerPurpose = FALSE;
+  decl MomentumLayerName = FALSE;
+
+
+  // NOTE: the XML emStateFiles update does not handle PGS pin layer, it uses spiral layer for all pins
+  // This is OK per Info from Filip Demuynck : "It’s what is defined in the layout for the ports that will be passed to the EM solver."
+
+  
+  // read the model.ndx file
+  decl fID = fopen(statefilename, "R");  // open file for reading
+  if (fID!=NULL) {
+    // we can read the file
+    fline=fgets(fID);  
+    while (fline != NULL) 
+    { 
+      // we can get a line from the file
+
+      // does this line specify the relevant Momentum pin settings?
+      if (index(fline, "<PinShapeDef version") > -1) MomentumPinShapeSection=TRUE;  // section starts
+      if (index(fline, "</PinShapeDef>") > -1) MomentumPinShapeSection=FALSE; // section ends
+      if (index(fline, "<layerNum>") > -1) MomentumLayerNum=TRUE; else MomentumLayerNum=FALSE;
+      if (index(fline, "<purposeNum>") > -1) MomentumLayerPurpose=TRUE; else MomentumLayerPurpose=FALSE;
+      if (index(fline, "<layerIdName>") > -1) MomentumLayerName=TRUE; else MomentumLayerName=FALSE;
+      
+      
+      if (MomentumPinShapeSection) 
+      {
+        // we are in the Momentum frequency settings
+        if (MomentumLayerNum) 
+        {
+          // this is the stop frequency, insert our new frequency value
+
+
+          fline = sprintf("                <layerNum>%i</layerNum>", new_layerNum);
+        }
+
+        if (MomentumLayerPurpose) 
+        {
+          // this is the layer purpose, enforce purpose drawning
+          fline = sprintf("                <purposeNum>-1</purposeNum>");
+        }
+        
+        if (MomentumLayerName) 
+        {
+          // this is the layer name
+          fline = sprintf("                <layerIdName>%s</layerIdName>", new_layerName);
+        }
+      }
+
+      textlines = append(textlines, list(fline)); // append current line to the list
+
+      
+      // get the next line
+      fline=fgets(fID);  
+    }    
+    fclose(fID);  // finally close file
+  }
+  
+
+  // re-write the file with the new contents
+  decl numlines = listlen(textlines);
+  decl fID = fopen(statefilename, "W");  // open file for reading
+  if (fID!=NULL) {
+    if (numlines>0)
+    {
+      decl i;
+      for ( i=0; i < numlines; i++)
+      {
+        fputs(fID, nth(i, textlines));    
+      }    
+    }
+    fclose(fID);  // finally close file
+  }
+
+}
+
+// ---------------------------------------------------------------
+
+defun prepare_calibration_sweeplist ()
+{
+  // This requires that use has selected a geometry option.
+  // Then, various parameter combinations are added to the sweep list
+
+  decl basename = "/data/sweep_cal.tmp";
+  decl tempname =  strcat(getcwd(), basename);      // temp file before adding line numbers
+  decl filename =  strcat(getcwd(), "/data/sweep_cal.csv"); // final parameter file for cal sweep
+  
+  // clear file, write header lines
+  clear_cal_sweeplist (tempname); 
+  
+  decl Nmin   = 1;
+  decl Nmax   = 4;
+  decl Nstep  = 1;
+  decl wmin = min_linewidth * 1e-6; if (wmin < 1e-6) wmin = 1e-6;
+  decl wmax = max_linewidth * 1e-6;
+  decl dw = -1; // automatic
+  decl smin = min_spacing * 1e-6;   if (smin < 1e-6) smin = 1e-6;
+  decl smax = smin;
+  decl ds = smin;
+  decl wshield = 5e-6; 
+  decl Ltarget = 0;
+  decl Dout_max = 0;
+  
+
+  // 400pH 
+  Ltarget = 0.4e-9;
+  Dout_max = 200e-6;
+  create_sweeplist_or_calibrationlist (Nmin,Nmax, Nstep, wmin,wmax,dw, smin, 2*smin, ds, Dout_max, wshield, Ltarget, basename, TRUE);
+
+  // 600pH 
+  Ltarget = 0.6e-9;
+  Dout_max = 250e-6;
+  create_sweeplist_or_calibrationlist (Nmin,Nmax, Nstep, wmin,wmax,dw, smin, 2*smin, ds, Dout_max, wshield, Ltarget, basename, TRUE);
+
+
+  // 750pH 
+  Ltarget = 0.75e-9;
+  Dout_max = 250e-6;
+  create_sweeplist_or_calibrationlist (Nmin,Nmax, Nstep, wmin,wmax,dw, smin, 2*smin, ds, Dout_max, wshield, Ltarget, basename, TRUE);
+
+  
+  // 1nH 
+  Ltarget = 1e-9;
+  Dout_max = 300e-6;
+  create_sweeplist_or_calibrationlist (Nmin,Nmax, Nstep, wmin,wmax,dw, smin, smax, ds, Dout_max, wshield, Ltarget, basename, TRUE);
+
+  // 1.5nH 
+  Ltarget = 1.5e-9;
+  Dout_max = 300e-6;
+  create_sweeplist_or_calibrationlist (Nmin,Nmax, Nstep, wmin,wmax,dw, smin, smax, ds, Dout_max, wshield, Ltarget, basename, TRUE);
+  
+  // 2nH 
+  Ltarget = 2e-9;
+  Dout_max = 350e-6;
+  create_sweeplist_or_calibrationlist (Nmin,Nmax, Nstep, wmin,wmax,dw, smin, smax, ds, Dout_max, wshield, Ltarget, basename, TRUE);
+
+  // 3nH 
+  Ltarget = 3e-9;
+  Dout_max = 350e-6;
+  create_sweeplist_or_calibrationlist (Nmin,Nmax, Nstep, wmin,wmax,dw, smin, smax, ds, Dout_max, wshield, Ltarget, basename, TRUE);
+
+  // 5nH 
+  Ltarget = 5e-9;
+  Dout_max = 350e-6;
+  create_sweeplist_or_calibrationlist (Nmin,Nmax, Nstep, wmin,wmax,dw, smin, smax, ds, Dout_max, wshield, Ltarget, basename, TRUE);
+
+  Nmax  = 6;
+
+  // 10nH 
+  Ltarget = 10e-9;
+  Dout_max = 350e-6;
+  create_sweeplist_or_calibrationlist (Nmin,Nmax, Nstep, wmin,wmax,dw, smin, smax, ds, Dout_max, wshield, Ltarget, basename, TRUE);
+
+  // 15nH 
+  Ltarget = 15e-9;
+  Dout_max = 500e-6;
+  create_sweeplist_or_calibrationlist (Nmin,Nmax, Nstep, wmin,wmax,dw, smin, smax, ds, Dout_max, wshield, Ltarget, basename, TRUE);
+
+  // 20nH 
+  Ltarget = 20e-9;
+  Dout_max = 500e-6;
+  create_sweeplist_or_calibrationlist (Nmin,Nmax, Nstep, wmin,wmax,dw, smin, smax, ds, Dout_max, wshield, Ltarget, basename, TRUE);
+
+  
+  
+  // What was created above does not the leading data line numbers. Add that now.
+  // No line numbers in the 2 header lines, only in the data line
+  decl fID_input =  fopen(tempname, "R");
+  decl fID_output = fopen(filename, "W");
+  if ((fID_input != NULL) && (fID_output != NULL)){
+    
+    decl line_num=-1;  // we want line 3 to start numbering with 1
+
+    decl inputline=fgets(fID_input);  
+    while (inputline != NULL)  { 
+      if (line_num < 1) fputs(fID_output, inputline); 
+      else fputs(fID_output, sprintf("%i %s", line_num, inputline));
+      
+      inputline=fgets(fID_input);  
+      line_num++;
+    }
+
+    fclose(fID_input);  
+    fclose(fID_output);  
+ 
+  }  else {
+    de_info(sprintf("Error creating calibration file.\nTemp file: %s\nOutput file:%s", tempname, filename));
+  }
+  
+  
+}  
+
+
+defun prepare_calibration_schematic ()
+{ 
+  // This requires that use has selected a geometry option.
+  // Then, a calibration schematic is set for this layout, and corresponding cal parameters are loaded from configuration
+
+  // what inductor option do we have?
+  decl withShield  = (Muehlhaus_read_string("/inductor_toolkit/shield.csv") == "1");
+  decl withCentertap  = (Muehlhaus_read_string("/inductor_toolkit/centertap.csv") == "1");
+  decl required_emModel = Muehlhaus_read_string("/inductor_toolkit/emModel.csv");
+
+  decl designContext = open_cellview_window ("Inductor_EM_Models_lib","calibrate","schematic");
+  
+  // delete the existing emModel instance and insert the required emModel instance
+  de_select_by_name("X1", 1);    
+  de_delete();
+  // insert new
+  decl itemInfo0SP = de_init_item(strcat("Inductor_EM_Models_lib:", required_emModel ,":symbol"));
+  de_place_item(itemInfo0SP, 0, 0);
+  itemInfo0SP = de_free_item(itemInfo0SP);
+  // set parameters
+  decl itemInfo0SP = de_edit_item("X1");
+  de_set_item_id(itemInfo0SP, "X1");
+  de_set_item_parameters(itemInfo0SP, list(prm_ex("Inductor_EM_Models_lib","StdForm","w um"),prm_ex("Inductor_EM_Models_lib","StdForm","s um"),prm_ex("Inductor_EM_Models_lib","StdForm","dout um"),prm_ex("Inductor_EM_Models_lib","StdForm","N")));
+  de_end_edit_item(itemInfo0SP);
+  de_end_edit_item(itemInfo0SP);    
+  de_deselect_all();
+  
+  // delete existing port 2 at inductor
+  de_select_by_name("TermG2", 1);    
+  de_delete();
+  
+  // place new port instance
+  decl itemInfo0SP = de_init_item("ads_simulation:TermG:symbol");
+  de_rotate_image("RIGHT");
+  decl port_x, port_y;
+  if ((withCentertap && (NOT withShield)) || ((NOT withCentertap) &&  withShield))  {
+    port_x =  0.5;
+    port_y = -0.5;
+  } else {
+    port_x = 1;
+    port_y = 0;
+  }
+  
+  de_place_item(itemInfo0SP, port_x, port_y);
+  itemInfo0SP = de_free_item(itemInfo0SP);
+  
+  // set calibration factors for cuurently selected shape
+  // get shape dependent calculation factors K1, K2 and offset L0
+  decl K1 = Muehlhaus_read_var("/inductor_toolkit/K1.csv");
+  decl K2 = Muehlhaus_read_var("/inductor_toolkit/K2.csv");
+  decl L0 = Muehlhaus_read_var("/inductor_toolkit/L0.csv");
+
+  decl itemInfo0SP = de_edit_item("VAR_calfactors");
+  
+  de_set_item_parameters(itemInfo0SP, list(list(prm_ex("ads_datacmps","VarFormStdForm",
+  prm_ex("ads_datacmps","VarNameForm","K1"),prm_ex("ads_datacmps","VarValueForm",sprintf("%.3f opt{ %.3f to %.3f }", K1, 0.5*K1, 2*K1))),prm_ex("ads_datacmps","VarFormStdForm",
+  prm_ex("ads_datacmps","VarNameForm","K2"),prm_ex("ads_datacmps","VarValueForm",sprintf("%.3f opt{ %.3f to %.3f}", K2, 0.5*K2,2*K2 ))),prm_ex("ads_datacmps","VarFormStdForm",
+  prm_ex("ads_datacmps","VarNameForm","L0"),prm_ex("ads_datacmps","VarValueForm",sprintf("%.3e opt{ -5e-008 to 5e-008 }", L0)))) ));  
+  
+  de_end_edit_item(itemInfo0SP);
+  itemInfo0SP = de_free_item(itemInfo0SP);
+
+
+  // save without asking user
+  db_save_design_without_prompting(designContext);
+}  
+  
+
+
+
+// ---------------------------------------------------------------
+
+defun set_all_emModel_substrates (newSubstrate)
+{
+  // update Momentum substrate in all emModel directories 
+  // parameter from dialog has correct library_substrate format that we need for emStateFile
+
+ // base directory where we want to search for emModel cells
+  decl basedir = strcat(MUEHLHAUS_INDUCTOR_PDK_PATH, "Inductor_EM_Models_lib");
+
+  fputs(stderr,"Updating substrate reference in emStateFile.xml");
+  
+  decl dirlist = scan_directory_for_dirs(basedir);
+  decl listsize = listlen(dirlist);
+  if (listsize>0)
+  {
+    decl i;
+    decl dirname;
+    for ( i=0; i < listsize; i++)
+    { 
+      // change frequency in emModel
+      dirname = strcat(basedir, "/", nth(i, dirlist),"/em%Model");
+      set_emStateFile_Substrate (dirname, newSubstrate);
+      // change frequency in emSetup
+      dirname = strcat(basedir, "/", nth(i, dirlist),"/em%Setup");
+      set_emStateFile_Substrate (dirname, newSubstrate);
+    }    
+    de_info(sprintf("emSetup and emModel statefiles updated for substrate %s", newSubstrate )); 
+
+  }
+
+}
+
+
+defun set_emStateFile_Substrate (modeldir, newSubstrate)
+// update substrate reference in the emStateFile 
+
+{
+  decl statefilename = strcat(modeldir, "/emStateFile.xml");
+  decl textlines = list();  // list to hold the lines of the file
+  decl fline;  // current line
+  decl MomSubstrateSection = FALSE;
+  decl libSubstName = FALSE;
+  
+  
+  // read the model.ndx file
+  decl fID = fopen(statefilename, "R");  // open file for reading
+  if (fID!=NULL) {
+
+    fputs(stderr,sprintf("Updating emStateFile: %s", statefilename));  
+
+    // we can read the file
+    fline=fgets(fID);  
+    while (fline != NULL) 
+    { 
+      // we can get a line from the file
+
+      // does this line specify the relevant Momentum pin settings?
+      if (index(fline, "<MomSubstrate version") > -1) MomSubstrateSection=TRUE;  // section starts
+      if (index(fline, "</MomSubstrate>") > -1) MomSubstrateSection=FALSE; // section ends
+      if (index(fline, "<libSubstName>") > -1) libSubstName=TRUE; else libSubstName=FALSE;
+      
+      
+      if (MomSubstrateSection) 
+      {
+        // we are in the Momentum substrate settings
+        if (libSubstName) 
+        {
+          // this is substrate reference
+          fline = sprintf("      <libSubstName>%s</libSubstName>", newSubstrate);
+        }
+
+      }
+
+      textlines = append(textlines, list(fline)); // append current line to the list
+
+      
+      // get the next line
+      fline=fgets(fID);  
+    }    
+    fclose(fID);  // finally close file
+  }
+  
+
+  // re-write the file with the new contents
+  decl numlines = listlen(textlines);
+  decl fID = fopen(statefilename, "W");  // open file for reading
+  if (fID!=NULL) {
+    if (numlines>0)
+    {
+      decl i;
+      for ( i=0; i < numlines; i++)
+      {
+        fputs(fID, nth(i, textlines));    
+      }    
+    }
+    fclose(fID);  // finally close file
+  }
+
+}
+
+
+
+
+defun Muehlhaus_CreateInductorCell ()
+{
+  
+  if (Muehlhaus_read_string("/inductor_toolkit/finetune_completed.csv") == "1") {
+    // fine tune is finished, so we can do this step 
+
+    // create the specific cell for our inductor implementation
+    decl OctaName = Muehlhaus_read_string("/inductor_toolkit/layoutcell.csv");
+    decl LayoutName = Muehlhaus_read_string("/inductor_toolkit/layoutname.csv");
+
+
+    decl N=Muehlhaus_get_real_from_csv("/data/inductor_params_final.csv", "N",0);
+    decl w=Muehlhaus_get_real_from_csv("/data/inductor_params_final.csv", "w",0);
+    decl s=Muehlhaus_get_real_from_csv("/data/inductor_params_final.csv", "s",0);
+    decl dout=Muehlhaus_get_real_from_csv("/data/inductor_params_final.csv", "dout",0);
+    decl wshield=Muehlhaus_get_real_from_csv("/data/inductor_params_final.csv", "wshield",0);
+
+    // for inductor with groundshield, we have the shield spacing as an extra parameter
+    decl withShield  = (Muehlhaus_read_string("/inductor_toolkit/shield.csv") == "1");
+
+    // for schematic, we need to know if the inductor has a center tap
+    decl withCentertap  = (Muehlhaus_read_string("/inductor_toolkit/centertap.csv") == "1");
+
+
+    // for IHP inductors, we have to specify Dinner instead of Douter
+    decl D_value; // can be inner or outer diameter
+    if ((LayoutName=="IHP_ind2") || (LayoutName=="IHP_ind3") || (LayoutName == "IHP_ind2_LBE") || (LayoutName == "IHP_ind3_LBE"))  {
+      // IHP inductors, specified by inner diameter
+      D_value = dout - 2*N*w - 2*(N-1)*s;
+    } else {
+      // regular inductors
+      D_value = dout;
+    }
+
+    decl Ltarget = val(Muehlhaus_read_string("/inductor_toolkit/Ltarget.csv"));  // L target for synthesisi
+    decl L_ftarget = Muehlhaus_read_var("/inductor_toolkit/L_ftarget.csv"); // actual L at target freq
+    decl Ltarget_string = sprintf("%.1fnH", Ltarget*1e9);
+
+    decl ftarget = val(Muehlhaus_read_string("/inductor_toolkit/ftarget.csv"));
+    decl ftarget_string = sprintf("%.2fGHz", ftarget/1e9);
+
+    decl Q_ftarget = Muehlhaus_read_var("/inductor_toolkit/Q_ftarget.csv");
+    decl Q_ftarget_string = sprintf("%.1f", Q_ftarget);
+
+    decl SRF_string = Muehlhaus_read_string("/inductor_toolkit/SRF.csv");
+
+    decl f_target = Muehlhaus_read_var("/inductor_toolkit/ftarget.csv");
+
+
+
+    decl cellname = getModelName(); 
+    decl context;
+
+    // Query open libraries and find the workspace's library
+    // That workspace's library is the first writable library that is not in the PDK path.
+    decl libraryname = Muehlhaus_get_libname ();
+
+
+    // check if cell's layout or schematic view already exists
+    decl cellNameList = de_get_cells_in_library(libraryname);
+    if(member(cellname, cellNameList)) {
+      // delete all views of that cell
+      de_delete_cell(libraryname, cellname);
+    }
+
+
+    // Create S-parameter output
+    // name of the model, needed to create the SnP output file with that name
+    decl Modelname = getModelName();
+    decl SparamName;
+    if (withCentertap) 
+    {  
+      SparamName = sprintf("%s/data/%s.s3p", slashify(getcwd()),Modelname);
+    } else {
+      SparamName = sprintf("%s/data/%s.s2p", slashify(getcwd()),Modelname);
+    }
+    // Now, copy the file finetune_result.snp to this named output file
+    gfile_copy ( strcat(getcwd(),"/data/finetune_result.snp"),  SparamName);
+    
+
+
+    // create LAYOUT view 
+
+    context = db_oa_create_empty_design(libraryname, cellname, "layout", 2);
+    de_show_context_in_new_window(context);
+    context = NULL;
+    de_set_window_by_sequence(0, 0);
+    decl itemInfo0LP = de_init_item(strcat(OctaName,":layout"));
+    de_set_item_id(itemInfo0LP, "X1");
+
+    if (withShield) {
+      // extra parameter for shield spacing
+      de_set_item_parameters(itemInfo0LP, list(
+        prm_ex("Inductor_Shapes_lib","StdForm",identify_value(N)),
+        prm_ex("Inductor_Shapes_lib","StdForm",strcat(identify_value(D_value)," um")),
+        prm_ex("Inductor_Shapes_lib","StdForm",strcat(identify_value(w)," um")),
+        prm_ex("Inductor_Shapes_lib","StdForm",strcat(identify_value(s)," um")),
+        prm_ex("Inductor_Shapes_lib","StdForm",strcat(identify_value(wshield)," um")),
+        prm_ex("Inductor_Shapes_lib","StdForm","0 nH")));
+    } else {
+      de_set_item_parameters(itemInfo0LP, list(
+        prm_ex("Inductor_Shapes_lib","StdForm",identify_value(N)),
+        prm_ex("Inductor_Shapes_lib","StdForm",strcat(identify_value(D_value)," um")),
+        prm_ex("Inductor_Shapes_lib","StdForm",strcat(identify_value(w)," um")),
+        prm_ex("Inductor_Shapes_lib","StdForm",strcat(identify_value(s)," um")),
+        prm_ex("Inductor_Shapes_lib","StdForm","0 nH")));
+    }
+    de_place_item(itemInfo0LP, 0, 0);
+    itemInfo0LP = de_free_item(itemInfo0LP);
+    
+    
+    // select all and flatten
+    // SIDE EFFECT: we loose the pins!
+    de_select_all();
+    de_flatten();
+    de_deselect_all();
+    
+    // only for IHP: remove anything from faked LBE layer
+    if (Toolkit_Layout_Options == "IHP") {
+      context = de_get_current_design_context();
+      db_select_all_on_layerid(context, db_layerid(IHP_LBE_faked_sub_layer), TRUE);
+      db_delete_selected(context);      
+    }
+
+    de_save_oa_design(strcat(libraryname,":",cellname,":layout"));
+
+    // create schematic view for S-parameter block
+    context = db_oa_create_empty_design(libraryname, cellname, "schematic", 1);
+    de_show_context_in_new_window(context);
+    context = NULL;
+    de_set_window_by_sequence(0, 0);
+
+    // start placement
+
+    decl itemInfo0SP;
+    decl sparam_name; 
+    if (withCentertap) { 
+      // three pins, where 3 is center tap
+      itemInfo0SP = de_init_item("ads_datacmps:S3P:symbol");
+      sparam_name = strcat(getModelName(), ".s3p");
+    } else {
+      itemInfo0SP = de_init_item("ads_datacmps:S2P:symbol");
+      sparam_name = strcat(getModelName(), ".s2p");
+    }
+
+    de_place_item(itemInfo0SP, 0, 0);
+    itemInfo0SP = de_free_item(itemInfo0SP);
+
+    decl itemInfo0SP = de_edit_item("SNP1");
+    de_set_item_id(itemInfo0SP, "SNP1");
+    de_set_item_parameters(itemInfo0SP, 
+         list(prm_ex("ads_datacmps","dfiles",strcat("\"",sparam_name,"\"")),
+         prm_ex("ads_datacmps","Type1"),
+         prm_ex("ads_datacmps","StringAndReference",""),
+         prm_ex("ads_datacmps","Mode0"),
+         prm_ex("ads_datacmps","ID0"),
+         prm_ex("ads_datacmps","EMode2"),
+         prm_ex("ads_datacmps","StdForm","27.0"),
+         prm_ex("ads_datacmps","y_n0"),
+         prm_ex("ads_datacmps","StdForm",""),
+         prm_ex("ads_datacmps","StdForm",""),
+         prm_ex("ads_datacmps","StdForm",""),
+         prm_ex("ads_datacmps","StdForm",""),
+         prm_ex("ads_datacmps","StdForm",""),
+         prm_ex("ads_datacmps","StdForm",""),
+         prm_ex("ads_datacmps","StdForm",""),
+         prm_ex("ads_datacmps","StdForm",""),
+         prm_ex("ads_datacmps","Auto","")));    
+    de_end_edit_item(itemInfo0SP);
+    de_end_edit_item(itemInfo0SP);
+
+    // pins
+    db_create_pin_cc(0,0,180);
+    db_create_pin_cc(1,0,0);
+
+
+    if (withCentertap) { 
+      decl itemInfo0SP = de_init_item("ads_rflib:GROUND:symbol");
+      de_rotate_image("DOWN");
+      de_place_item(itemInfo0SP, 1, -0.5);
+      itemInfo0SP = de_free_item(itemInfo0SP);
+
+      db_create_pin_cc(0.5,-0.5,-90);
+
+    } else {
+      decl itemInfo0SP = de_init_item("ads_rflib:GROUND:symbol");
+      de_rotate_image("DOWN");
+      de_place_item(itemInfo0SP, 0.5, -0.5);
+      itemInfo0SP = de_free_item(itemInfo0SP);
+    }
+
+
+    decl design_comment = strcat ("Synthesized by Muehlhaus Inductor Toolkit Open\n",
+          "L= ", Ltarget_string, " @ ", ftarget_string, "\n", 
+          "Q= ", Q_ftarget_string, " @ ", ftarget_string, "\n", 
+          "SRF= ", SRF_string, " GHz\n",            
+          "Date: ", date_time());
+
+    // comment to understand what this is
+    de_add_text(3, 0, design_comment);  
+    de_save_oa_design(strcat(libraryname,":",cellname,":schematic"));
+    
+   
+    // create SCHEMATIC view with lumped model, if that data does exist
+    decl scs_modelname = Muehlhaus_read_string("/inductor_toolkit/optimized_modelname.csv");
+    decl scs_filename = strcat(getcwd(),"/data/",scs_modelname,".scs");
+    
+    
+    // check if the scs model name is the same as what we are working on now,
+    // and if that scs output was created (and the related paraneter files)
+    
+    if ((getModelName()==scs_modelname) && (ael_file_exists(scs_filename))) {
+      // scs netlist exists, so we should have element parameters to use
+      // fputs(stderr, strcat("scs filename = ", scs_filename, " found!"));
+      
+      
+      // copy lumped model cell from inductor toolkit library to user's work library
+      copy_lumpedmodel_cell_to_user_library (libraryname, withCentertap);  
+      
+      // get optimized element parameters that where written when creating scs netlist 
+      decl Ls = Muehlhaus_read_string("/inductor_toolkit/optimized_Ls.csv");
+      decl kL = Muehlhaus_read_string("/inductor_toolkit/optimized_kL.csv");  // used only for 3port, but also has default data for 2-port data
+      decl Rs = Muehlhaus_read_string("/inductor_toolkit/optimized_Rs.csv");
+      decl Cp = Muehlhaus_read_string("/inductor_toolkit/optimized_Cp.csv");
+      decl Cp2 = Muehlhaus_read_string("/inductor_toolkit/optimized_Cp2.csv");
+      decl Rk = Muehlhaus_read_string("/inductor_toolkit/optimized_Rk.csv"); 
+      decl Lk = Muehlhaus_read_string("/inductor_toolkit/optimized_Lk.csv");
+      decl Cox1 = Muehlhaus_read_string("/inductor_toolkit/optimized_Cox1.csv");
+      decl Cox2 = Muehlhaus_read_string("/inductor_toolkit/optimized_Cox2.csv");
+      decl Cox3 = Muehlhaus_read_string("/inductor_toolkit/optimized_Cox3.csv");
+      decl Csub1 = Muehlhaus_read_string("/inductor_toolkit/optimized_Csub1.csv");
+      decl Csub2 = Muehlhaus_read_string("/inductor_toolkit/optimized_Csub2.csv");
+      decl Csub3 = Muehlhaus_read_string("/inductor_toolkit/optimized_Csub3.csv");
+      decl Rsub1 = Muehlhaus_read_string("/inductor_toolkit/optimized_Rsub1.csv");
+      decl Rsub2 = Muehlhaus_read_string("/inductor_toolkit/optimized_Rsub2.csv");
+      decl Rsub3 = Muehlhaus_read_string("/inductor_toolkit/optimized_Rsub3.csv");
+      decl k = Muehlhaus_read_string("/inductor_toolkit/optimized_k.csv");
+
+      context = db_oa_create_empty_design(libraryname, cellname, "schematic_lumpedmodel", 1);
+      de_show_context_in_new_window(context);
+      context = NULL;
+      de_set_window_by_sequence(0, 0);
+
+      if (withCentertap) { 
+
+        decl itemInfo0SP = de_init_item(strcat(libraryname,":circuitmodel_3port:symbol"));
+        de_place_item(itemInfo0SP, 0, 0);
+        itemInfo0SP = de_free_item(itemInfo0SP);
+
+        decl itemInfo0SP = de_edit_item("X1");
+        de_set_item_id(itemInfo0SP, "X1");
+
+        de_set_item_parameters(itemInfo0SP, 
+          list( prm_ex("Inductor_EM_Models_lib","StdForm",Ls),    // Ls
+            prm_ex("Inductor_EM_Models_lib","StdForm",Rs),  // Rs
+            prm_ex("Inductor_EM_Models_lib","StdForm",Cp),  // Cp
+            prm_ex("Inductor_EM_Models_lib","StdForm",Cp2), // Cp2
+            prm_ex("Inductor_EM_Models_lib","StdForm",Rk),  // Rk
+            prm_ex("Inductor_EM_Models_lib","StdForm",Lk),  // Lk
+            prm_ex("Inductor_EM_Models_lib","StdForm",Cox1),  // Cox1
+            prm_ex("Inductor_EM_Models_lib","StdForm",Cox2),  // Cox2
+            prm_ex("Inductor_EM_Models_lib","StdForm",Cox3),  // Cox3
+            prm_ex("Inductor_EM_Models_lib","StdForm",Csub1), // Csub1
+            prm_ex("Inductor_EM_Models_lib","StdForm",Csub2), // Csub2
+            prm_ex("Inductor_EM_Models_lib","StdForm",Csub3), // Csub3
+            prm_ex("Inductor_EM_Models_lib","StdForm",Rsub1), // Rsub1
+            prm_ex("Inductor_EM_Models_lib","StdForm",Rsub2), // Rsub2
+            prm_ex("Inductor_EM_Models_lib","StdForm",Rsub3), // Rsub3
+            prm_ex("Inductor_EM_Models_lib","StdForm",k),   // k
+            prm_ex("Inductor_EM_Models_lib","StdForm",kL)));  // kL for 3-port
+
+
+        de_end_edit_item(itemInfo0SP);
+        de_end_edit_item(itemInfo0SP);
+
+
+        // pins
+        db_create_pin_cc(0,0,180);
+        db_create_pin_cc(1,0,0);
+        db_create_pin_cc(0.5,-0.25,-90);
+
+      } else {
+
+    
+        decl itemInfo0SP = de_init_item(strcat(libraryname, ":circuitmodel_2port:symbol"));
+        de_place_item(itemInfo0SP, 0, 0);
+        itemInfo0SP = de_free_item(itemInfo0SP);
+
+        decl itemInfo0SP = de_edit_item("X1");
+        de_set_item_id(itemInfo0SP, "X1");
+
+        de_set_item_parameters(itemInfo0SP, 
+          list( prm_ex("Inductor_EM_Models_lib","StdForm",Ls),    // Ls
+            prm_ex("Inductor_EM_Models_lib","StdForm",Rs),  // Rs
+            prm_ex("Inductor_EM_Models_lib","StdForm",Cp),  // Cp
+            prm_ex("Inductor_EM_Models_lib","StdForm",Cp2), // Cp2
+            prm_ex("Inductor_EM_Models_lib","StdForm",Rk),  // Rk
+            prm_ex("Inductor_EM_Models_lib","StdForm",Lk),  // Lk
+            prm_ex("Inductor_EM_Models_lib","StdForm",Cox1),  // Cox1
+            prm_ex("Inductor_EM_Models_lib","StdForm",Cox2),  // Cox2
+            prm_ex("Inductor_EM_Models_lib","StdForm",Csub1), // Csub1
+            prm_ex("Inductor_EM_Models_lib","StdForm",Csub2), // Csub2
+            prm_ex("Inductor_EM_Models_lib","StdForm",Rsub1), // Rsub1
+            prm_ex("Inductor_EM_Models_lib","StdForm",Rsub2), // Rsub2
+            prm_ex("Inductor_EM_Models_lib","StdForm",k))); // d
+
+
+          de_end_edit_item(itemInfo0SP);
+          de_end_edit_item(itemInfo0SP);
+
+          // pins
+          db_create_pin_cc(0,0,180);
+          db_create_pin_cc(1,0,0);
+      }
+
+
+      decl design_comment = strcat ("Synthesized by Muehlhaus Inductor Toolkit Open\n",
+            "L= ", Ltarget_string, " @ ", ftarget_string, "\n", 
+            "Q= ", Q_ftarget_string, " @ ", ftarget_string, "\n", 
+            "SRF= ", SRF_string, " GHz\n",            
+            "Date: ", date_time());
+
+      // comment to understand what this is
+      de_add_text(3, 0, design_comment);  
+      de_save_oa_design(strcat(libraryname,":",cellname,":schematic_lumpedmodel"));      
+      
+    } else {
+      // scs netlist does not exists, no element parameters available, nothing to do
+      // or is outdated
+      fputs(stderr, "Lumped model data is outdated, or does not exist");
+    }
+
+    
+   
+    // create SYMBOL view 
+
+    // to keep it simple, copy symbol view from inductor_shapes_lib 
+    if (withCentertap) { 
+      // three pins, where 3 is center tap
+      de_copy_cellview("Inductor_Shapes_lib", "ind_diff_3port", "symbol", libraryname, cellname, "symbol");  
+    } else {
+      de_copy_cellview("Inductor_Shapes_lib", "ind_diff_2port", "symbol", libraryname, cellname, "symbol");  
+    }
+    
+    
+    // write results to history list
+    Muehlhaus_Write_Inductor_History_File ();  
+    
+  } else {
+    // finetune is not yet completed, so we can't do this now!
+    warning("", 0, "Before creating the inductor cell, you need to run the Fine Tune Inductance step!", NULL);
+  }
+}
+
+
+defun Muehlhaus_CreateTransformerCell ()
+{
+  
+    // create the specific cell for our transformer implementation
+    decl TrafoName = Muehlhaus_read_string("/inductor_toolkit/layoutcell.csv");  // name of layout cell
+    decl LayoutName = Muehlhaus_read_string("/inductor_toolkit/layoutname.csv"); // internal name for shape
+    decl withCentertap  = (Muehlhaus_read_string("/inductor_toolkit/centertap.csv") == "1");
+    decl mode = Muehlhaus_read_string("/inductor_toolkit/mode.csv");
+
+     // get best sweep result
+    decl Lnom=Muehlhaus_read_var("/inductor_toolkit/Lnom.csv",0);
+    decl N1=Muehlhaus_read_var("/inductor_toolkit/N1.csv",0);
+    decl N2=Muehlhaus_read_var("/inductor_toolkit/N2.csv",0);
+    decl w=Muehlhaus_read_var("/inductor_toolkit/w.csv",0);
+    decl s=Muehlhaus_read_var("/inductor_toolkit/s.csv",0);
+    decl dout=Muehlhaus_read_var("/inductor_toolkit/dout.csv",0);
+    
+    
+    fputs(stderr, strcat ("N1: ",identify_value(N1)));
+    fputs(stderr, strcat ("N2: ",identify_value(N2)));
+    fputs(stderr, strcat ("w: ",identify_value(w)));
+    fputs(stderr, strcat ("s: ",identify_value(s)));
+    fputs(stderr, strcat ("dout: ",identify_value(dout)));
+    fputs(stderr, strcat ("Lnom: ",identify_value(Lnom)));
+
+    decl ftarget = val(Muehlhaus_read_string("/inductor_toolkit/ftarget.csv"));
+    decl ftarget_string = sprintf("%.2fGHz", ftarget/1e9);
+
+    decl cellname = getModelName(); 
+    decl context;
+
+    // Query open libraries and find the workspace's library
+    // That workspace's library is the first writable library that is not in the PDK path.
+    decl libraryname = Muehlhaus_get_libname ();
+
+
+    // check if cell's layout or schematic view already exists
+    decl cellNameList = de_get_cells_in_library(libraryname);
+    if(member(cellname, cellNameList)) {
+      // delete all views of that cell
+      de_delete_cell(libraryname, cellname);
+    }
+    
+
+    // Create S-parameter output
+    // name of the model, needed to create the SnP output file with that name
+    decl Modelname = getModelName();
+    decl SparamName;
+    if (withCentertap) 
+    {  
+      SparamName = sprintf("%s/data/%s.s6p", slashify(getcwd()),Modelname);
+    } else {
+      SparamName = sprintf("%s/data/%s.s4p", slashify(getcwd()),Modelname);
+    }
+    // Now, copy the file finetune_result.snp to this named output file
+    decl SimResult = strcat(getcwd(),"/data/finetune_result.snp");
+    gfile_copy ( SimResult,  SparamName);
+
+    // create LAYOUT view 
+
+    context = db_oa_create_empty_design(libraryname, cellname, "layout", 2);
+    de_show_context_in_new_window(context);
+    context = NULL;
+    de_set_window_by_sequence(0, 0);
+    decl itemInfo0LP = de_init_item(strcat(TrafoName,":layout"));
+    de_set_item_id(itemInfo0LP, "X1");
+
+   if (LayoutName == "TrafoInterleaved") {
+
+     decl stacked_yes_no;
+     if (Muehlhaus_read_string("/inductor_toolkit/interleaved_stacked.csv")=="1") 
+      stacked_yes_no="y_n1";
+     else 
+      stacked_yes_no="y_n0";
+      
+     decl shape_octa_square;
+     if (Muehlhaus_read_string("/inductor_toolkit/interleaved_square.csv")=="1") 
+      shape_octa_square="shape_square";
+     else 
+      shape_octa_square="shape_octa";
+      
+
+   
+     de_set_item_parameters(itemInfo0LP, list(
+        prm_ex("Inductor_Shapes_lib","StdForm",identify_value(N1)),
+        prm_ex("Inductor_Shapes_lib","StdForm",identify_value(N2)),
+        prm_ex("Inductor_Shapes_lib","StdForm",strcat(identify_value(dout)," um")),
+        prm_ex("Inductor_Shapes_lib","StdForm",strcat(identify_value(w)," um")),
+        prm_ex("Inductor_Shapes_lib","StdForm",strcat(identify_value(s)," um")),
+        prm_ex("Inductor_Shapes_lib", shape_octa_square),
+        prm_ex("Inductor_Shapes_lib", stacked_yes_no),    // stacked  yes/no
+        prm_ex("Inductor_Shapes_lib","y_n0"), // centertap_for_emModel yes/no
+        prm_ex("Inductor_Shapes_lib","StdForm","0 nH"),
+        prm_ex("Inductor_Shapes_lib","StdForm","0 nH") ));
+   
+   } else if (mode == "overlay") {
+     
+     de_set_item_parameters(itemInfo0LP, list(
+        prm_ex("Inductor_Shapes_lib","StdForm",identify_value(N1)),
+        prm_ex("Inductor_Shapes_lib","StdForm",identify_value(N2)),
+        prm_ex("Inductor_Shapes_lib","StdForm",strcat(identify_value(dout)," um")),
+        prm_ex("Inductor_Shapes_lib","StdForm",strcat(identify_value(w)," um")),
+        prm_ex("Inductor_Shapes_lib","StdForm",strcat(identify_value(s)," um")),
+        prm_ex("Inductor_Shapes_lib","StdForm","0 nH"),
+        prm_ex("Inductor_Shapes_lib","StdForm","0 nH") ));
+   }
+
+    de_place_item(itemInfo0LP, 0, 0);
+    itemInfo0LP = de_free_item(itemInfo0LP);
+
+    // select all and flatten
+    // SIDE EFFECT: we loose the pins!
+    de_select_all();
+    de_flatten();
+    de_deselect_all();
+    
+    de_save_oa_design(strcat(libraryname,":",cellname,":layout"));
+    
+
+    // create SCHEMATIC view for S-parameter block
+    context = db_oa_create_empty_design(libraryname, cellname, "schematic", 1);
+    de_show_context_in_new_window(context);
+    context = NULL;
+    de_set_window_by_sequence(0, 0);
+
+    // start placement
+
+    decl itemInfo0SP;
+    decl sparam_name; 
+    
+    // Six pins, where 3 and 6 is center tap
+    itemInfo0SP = de_init_item("ads_datacmps:S6P:symbol");
+    sparam_name = strcat(getModelName(), ".s6p");
+   
+    de_place_item(itemInfo0SP, 0, 0);
+    itemInfo0SP = de_free_item(itemInfo0SP);
+
+    decl itemInfo0SP = de_edit_item("SNP1");
+    de_set_item_id(itemInfo0SP, "SNP1");
+    de_set_item_parameters(itemInfo0SP, 
+         list(prm_ex("ads_datacmps","dfiles",strcat("\"",sparam_name,"\"")),
+         prm_ex("ads_datacmps","Type1"),
+         prm_ex("ads_datacmps","StringAndReference",""),
+         prm_ex("ads_datacmps","Mode0"),
+         prm_ex("ads_datacmps","ID0"),
+         prm_ex("ads_datacmps","EMode2"),
+         prm_ex("ads_datacmps","StdForm","27.0"),
+         prm_ex("ads_datacmps","y_n0"),
+         prm_ex("ads_datacmps","StdForm",""),
+         prm_ex("ads_datacmps","StdForm",""),
+         prm_ex("ads_datacmps","StdForm",""),
+         prm_ex("ads_datacmps","StdForm",""),
+         prm_ex("ads_datacmps","StdForm",""),
+         prm_ex("ads_datacmps","StdForm",""),
+         prm_ex("ads_datacmps","StdForm",""),
+         prm_ex("ads_datacmps","StdForm",""),
+         prm_ex("ads_datacmps","Auto","")));    
+    de_end_edit_item(itemInfo0SP);
+    de_end_edit_item(itemInfo0SP);
+   
+    db_create_pin_cc(0,0,180);    // pin1
+    db_create_pin_cc(0,-0.25,180);  // pin2
+    db_create_pin_cc(0.5,-0.625,270); // pin3
+    db_create_pin_cc(1,-0.25,0);  // pin4
+    db_create_pin_cc(1, 0,0); // pin5
+    db_create_pin_cc(0.5, 0.375,90);  // pin6
+
+
+    decl itemInfo0SP = de_init_item("ads_rflib:GROUND:symbol");
+    de_rotate_image("DOWN");
+    de_place_item(itemInfo0SP, 1, -0.625);
+    itemInfo0SP = de_free_item(itemInfo0SP);
+
+    decl design_comment = strcat ("Synthesized by Muehlhaus Inductor Toolkit Open\n",
+          "L1 nominal value= ", val(Lnom), "\n", 
+          "N1=", val(N1)," N2=", val(N2),"\n", 
+          "Date: ", date_time());
+
+    // comment to understand what this is
+    de_add_text(3, 0, design_comment);  
+    de_save_oa_design(strcat(libraryname,":",cellname,":schematic"));
+
+
+    // create SYMBOL view 
+
+    // to keep it simple, copy symbol view from inductor_shapes_lib 
+    de_copy_cellview("Inductor_Shapes_lib", "transf_interleaved_6port", "symbol", libraryname, cellname, "symbol");  
+
+    // write results to history list
+    Muehlhaus_Write_TransformerHistory_File();
+}
+
+
+defun gridsnap(a)
+// snap to database grid
+{ 
+
+  decl snapped = 1.0*round(a*database_resolution)/database_resolution;
+  // fputs(stderr, strcat("input value to snapping = ", identify_value(a)));
+  // fputs(stderr, strcat("snapped value  = ", identify_value(snapped),"\n"));
+  return snapped; 
+}
+
+
+
+defun get_referenced_lib_database_resolution (theLib)
+// get database resolution for library that holds the EM models
+{
+  
+  // get the referenced technology library 
+  decl techLibList;
+  decl found_resolution = NULL;
+  
+  if( tech_is_library_using_referenced_technologies(theLib)) {
+    techLibList = tech_get_libraries_used_by_technology(theLib);
+
+    decl test_resolution;
+
+    // search referenced libraries, skip schematic libraries
+    decl listsize = listlen(techLibList);
+    decl libname;
+    decl i;
+
+    for ( i=0; i < listsize; i++)
+      {
+  libname = nth(i, techLibList);
+  if ((index (libname, "schematic") == -1) && (libname != theLib)) {
+    // only search libraries that do NOT have schematic in their name
+    test_resolution = tech_get_layout_resolution(libname);
+    if (test_resolution != NULL) found_resolution = test_resolution;
+
+    fputs(stderr, strcat("Library '", libname, "', resolution: ", identify_value(test_resolution)));  
+
+  }
+    }    
+
+  }
+  return found_resolution;
+}
+
+
+
+
+
+defun get_database_resolution ()
+// set global variable for database resolution that we can use in snapping
+{
+  // get the user's library 
+  decl userlib = Muehlhaus_get_libname ();
+  // get the technology layout resolution in database units.
+  
+  decl res = NULL;
+  
+  if (userlib != "") {
+    res = tech_get_layout_resolution(userlib);
+    fputs(stderr, strcat("Getting database_resolution from library '", userlib, "', value: ", identify_value(res)));  
+  }  
+  
+  // if we can't get database resolution, use resolution 1000 = 1nm snapping
+  if (res == NULL) {
+    res = default_database_resolution; 
+    fputs(stderr, strcat("Could not get database_resolution for library '", userlib, "', temporarily switching to default value: ", identify_value(res)));  
+  }
+  return res;
+}
+
+
+// ================== layer purpose handling for technology defined extra layers =====================
+
+defun getLayerNum_NumPurposeString (NumPurposeString)
+{
+  // This splits a string with layer:purpose into two pieces, and returns the first part as a number
+  
+  decl items = parse (NumPurposeString, ":");
+  return round(val(nth(0, items)));
+}
+
+
+
+defun getPurposeNum_NumPurposeString (NumPurposeString)
+{
+  // This splits a string with layer:purpose into two pieces, and returns the second part as a number
+  decl items = parse (NumPurposeString, ":");
+  return round(val(nth(1, items)));
+}
+
+
+// ============================= copy derived layers and subst to another library  ============================
+
+defun error_layer_invalid ()
+{
+  
+  // This error might be thrown when tech_layer_exists fails (ADS2014.01 EA does that)
+  // Now, we can reset the error handler
+  on_error(); 
+  
+} 
+
+
+defun check_and_create_derived_layer (libraryName, derived_name, derived_layernum, dowhat, via_name, distance_um)
+{  // e.g. dowhat = "growEnvelope"
+
+  decl added_layer = FALSE;
+  
+  
+  decl layer_does_exist = FALSE;  
+  on_error (error_layer_invalid); // An AEL error is raised in ADS2014 if tech_get_libraries_used_by_technology seens any missing library
+  layer_does_exist = ( (tech_layer_exists(libraryName, derived_name)) || (tech_layer_exists( libraryName, derived_layernum)) );
+  on_error(); 
+  
+  
+  if  (layer_does_exist)
+  // This name or number is already in use !
+  {
+    fputs(stderr, strcat("Layer '",derived_name,"' already exists. Nothing to do.")); 
+  } else {
+    
+    decl distance_dbu = round(distance_um * tech_get_layout_resolution(libraryName)); // database_resolution of THAT library
+    if( tech_create_derived_sizing_layer(libraryName, derived_name, derived_layernum, dowhat, via_name, distance_dbu ))   // distance in database units
+    {
+      fputs(stderr, strcat("Creating derived layer '",derived_name,"' successful. "));
+      tech_save_technology(libraryName);
+      added_layer = TRUE;
+    } else {
+      fputs(stderr, strcat("Creating derived layer '",derived_name,"' failed. "));
+    }  
+  }
+  return added_layer;
+}  
+
+
+
+defun check_and_create_merged_via (libraryName, derived_layernum, via_name, via_layernum)
+{
+  // add some intelligent presets to make the call simpler
+  // name of derived via layer is set automatically 
+  // distance is set automatically from via dimensions
+
+  decl derived_name = strcat(via_name, "_Merged_Inductor");
+  decl via_layerID = db_layerid(via_layernum);
+  decl distance = 0.75 * mi_get_via_gap (via_layerID);
+  
+  decl added_layer = check_and_create_derived_layer (libraryName, derived_name, derived_layernum, "growEnvelope", via_name, distance);
+
+  /*
+  fputs(stderr, strcat("libraryName: ", identify_value(libraryName)));
+  fputs(stderr, strcat("via_name: ", identify_value(via_name)));
+  fputs(stderr, strcat("derived_name: ", identify_value(derived_name)));
+  fputs(stderr, strcat("derived_layernum: ", identify_value(derived_layernum)));
+  fputs(stderr, strcat("distance: ", identify_value(distance)));
+  fputs(stderr, strcat("check_and_create_merged_via returns: ", identify_value(added_layer)));
+  */
+
+  return added_layer;
+}
+
+
+
+
+defun copy_subst_to_library (libraryName)
+{
+  // Copy all *.subst files from Inductor Toolkit library to specified library
+
+  decl filelist = get_dir_files(strcat(MUEHLHAUS_INDUCTOR_PDK_PATH, "Inductor_EM_Models_lib"), "subst");
+  decl listsize = listlen(filelist);
+  if (listsize>0)
+  {
+    // We have substrate files to copy
+
+    decl i;
+    decl filename;
+    decl full_target_filename;
+    
+    for ( i=0; i < listsize; i++)
+    {
+      filename = nth(i, filelist);
+      
+      // check if the file already exists in the user library
+      full_target_filename = strcat (getcwd(), "/", libraryName, "/", filename);
+      
+      if (ael_file_exists(full_target_filename)) 
+      {
+        fputs(stderr, strcat("Substrate file '", full_target_filename, "' exists in library ", libraryName, ", nothing to do."));
+      } else {
+        // fputs(stderr, strcat("Substrate file '", full_target_filename, "' does not exist in library ", libraryName, ", copy now."));
+        fputs(stderr, strcat("Copy substrate ", "Inductor_EM_Models_lib:", filename, " to ", libraryName,":", filename));
+        de_copy_library_files(list(strcat("Inductor_EM_Models_lib:", filename)), list(strcat(libraryName,":", filename)));  
+      }
+    }  
+  }
+}
+
+
+
+defun copy_subst_and_derived_layers_to_userlibrary ()
+{
+  // copy derived EM layers to user library
+  decl userlib = Muehlhaus_get_libname ();
+  
+  fputs(stderr, "Copy EM substrates and derived layer from Inductor Toolkit to user library now.");
+  
+  // Create derived layer for vias, if the required function is defined in technology.ael
+  if (is_function_defined("tech_create_derived_layers"))
+  {
+    // call function defined in technology.ael
+    tech_create_derived_layers (userlib);
+  } else {
+    de_info("The Inductor Toolkit EM substrates have been copied to your user library. However, the derived layers for viamerging could not be added automatically. \nTo use the copied substrate files, please add derived layers for viamerging as needed.");
+  }
+    
+  // Copy all Inductor Toolkit *.subst to user library
+  copy_subst_to_library(userlib); 
+    
+}
+
+
+defun update_dds_from_template ()
+{
+
+  // Check if file exists. File might be missing if an older dds file was used that does not create it.
+  // In this case, force an update of the dds file from the new template
+  if (!ael_file_exists(strcat(getcwd(),"/data/inductor_params_final.csv"))) 
+  {
+    // remove old dds
+    remove(strcat(getcwd(),"/evaluate_finetune.dds"));
+    fputs(stderr, "Removing outdated evaluate_finetune.dds now.");
+  }
+}
+
+
+
+
+
+// ================== Housekeeping functions, execute on loading this file ======================
+
+// load shared utility functions
+load(strcat(MUEHLHAUS_INDUCTOR_PDK_PATH, "/de/ael/shared_utilities"));
+
+// create inductor toolkit working directory, if it does not exist
+Create_toolkit_dir ();
+
+// Copy existing Green's functions for substrate and set path to them
+Copy_substrate_GF ();
+
+
+// write PDK location to disk, so that dk_defined_fun can use it as well
+// change for ADS 2017: we can't use getcwd() at startup because that no longer returns woerkspace location
+// instead, we use a temp directory that we extract from AEL function tmpnam().
+
+decl tempname = tmpnam();
+decl stringlength;
+while ((rightstr(tempname,1) != "/") && (rightstr(tempname,1) != "\\")) {
+  stringlength = strlen(tempname);
+  tempname = leftstr(tempname, stringlength -1);
+}
+
+decl filename = strcat(tempname, "PDK_path.loc");
+decl fID = fopen(filename, "W");  // open file for reading
+if (fID!=NULL) {
+  fputs(fID, MUEHLHAUS_INDUCTOR_PDK_PATH);    
+  fclose(fID);  // finally close file
+} else {
+  fputs(stderr, strcat("dk_defined_fun: ** ERROR ** writing ", identify_value(filename)));
+}
+
+
+
+// set snap grid global variable
+
+decl database_resolution = get_database_resolution ();
+// fputs(stderr, strcat("database_resolution = ", identify_value(database_resolution)));
+
+// remove dds files that might be from old version
+update_dds_from_template ();
+
+
+// end
+

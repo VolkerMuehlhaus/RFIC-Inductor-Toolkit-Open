@@ -1,0 +1,767 @@
+
+// Global variables
+
+decl lic_check_passed = 0;
+
+
+// ==============================================================================
+
+
+defun calc_resize_factor (L_target, L_is_ftarget, L_is_DC)
+{
+  return L_target/L_is_ftarget *  pow(L_is_ftarget/L_is_DC, 0.3);
+}
+
+
+
+
+defun finetune_rescale_dout (L_target, L_is_ftarget, dout, ftarget, fSRF)
+{
+  // used when repeating the fintune step
+  
+  decl fratio=pow(ftarget/fSRF, 0.8);
+  decl dnew=dout*L_target/L_is_ftarget*(1-fratio) + dout*fratio;
+  return dnew;
+
+}
+
+
+defun get_updated_value (dummy, filename)
+{
+  // we don't actually use dummy, but want to make sure this function call is triggered
+  // and the L_target file is re-read
+  return read_var_value(filename);
+}  
+
+
+//////////////////////// scs netlist //////////////////////
+
+defun get_single_value (theData)
+{
+  // used for netlist output
+  // reduce multi-dimensional data from optimization to single value
+ decl data_dimension = sweep_dim(theData);
+ 
+ decl myData = 0;
+ if (data_dimension == 0)  myData = val(theData);
+ if (data_dimension == 1)  myData = val(theData[0]);
+ if (data_dimension == 2)  myData = val(theData[0,0]);
+ 
+ return myData;
+
+}
+
+
+
+defun Muehlhaus_WriteOptResults_2Port (modelname, Ls, Rs, Cp, Cp2, Rk, Lk, Cox1, Cox2, Csub1, Csub2, Rsub1, Rsub2, k) 
+{
+  // write optimization results to the text files, so that we can use them for creating a lumped model in ADS
+  
+  // values are passed as STRING, not float
+  
+  Muehlhaus_write_string("/inductor_toolkit/optimized_modelname.csv",modelname);
+
+  Muehlhaus_write_string("/inductor_toolkit/optimized_kL.csv","0");  // kL is not used in 2-port model
+
+  Muehlhaus_write_string("/inductor_toolkit/optimized_Ls.csv",Ls);
+  Muehlhaus_write_string("/inductor_toolkit/optimized_Rs.csv",Rs);
+  Muehlhaus_write_string("/inductor_toolkit/optimized_Cp.csv",Cp);
+  Muehlhaus_write_string("/inductor_toolkit/optimized_Cp2.csv",Cp2);
+  Muehlhaus_write_string("/inductor_toolkit/optimized_Rk.csv",Rk);
+  Muehlhaus_write_string("/inductor_toolkit/optimized_Lk.csv",Lk);
+  Muehlhaus_write_string("/inductor_toolkit/optimized_Cox1.csv",Cox1);
+  Muehlhaus_write_string("/inductor_toolkit/optimized_Cox2.csv",Cox2);
+  Muehlhaus_write_string("/inductor_toolkit/optimized_Csub1.csv",Csub1);
+  Muehlhaus_write_string("/inductor_toolkit/optimized_Csub2.csv",Csub2);
+  Muehlhaus_write_string("/inductor_toolkit/optimized_Rsub1.csv",Rsub1);
+  Muehlhaus_write_string("/inductor_toolkit/optimized_Rsub2.csv",Rsub2);
+  Muehlhaus_write_string("/inductor_toolkit/optimized_k.csv",k);
+  
+  return 1;
+}
+
+
+
+
+defun Muehlhaus_WriteNetlist_2Port (modelname, Ls, Rs, Cp, Cp2, Rk, Lk, Cox1, Cox2, Csub1, Csub2, Rsub1, Rsub2, k) 
+{
+
+  // safely handle data with multiple dimensions from optimization
+  // we just need one value, because they are all the same
+  
+  Ls = get_single_value (Ls);
+  Rs = get_single_value (Rs);
+  Cp = get_single_value (Cp);
+  Cp2 = get_single_value (Cp2);
+  Rk = get_single_value (Rk);
+  Lk = get_single_value (Lk);
+  Cox1 = get_single_value (Cox1);
+  Cox2 = get_single_value (Cox2);
+  Csub1 = get_single_value (Csub1);
+  Csub2 = get_single_value (Csub2);
+  Rsub1 = get_single_value (Rsub1);
+  Rsub2 = get_single_value (Rsub2);
+  k = get_single_value (k);
+  
+
+  // write optimization results to the text files, 
+  // so that we can use them for creating a lumped model in ADS
+  Muehlhaus_WriteOptResults_2Port (modelname, Ls, Rs, Cp, Cp2, Rk, Lk, Cox1, Cox2, Csub1, Csub2, Rsub1, Rsub2, k) ;
+
+
+  // write the pi model netlist corresponding to topology in circuitmodel_2port
+  // actual scs file output
+  decl fID;
+
+  //fputs(stderr,"\n Starting scs netlist output");
+  //fputs(stderr, strcat("modelname = ", identify_value(modelname), "\n"));
+
+  decl filename = strcat(getcwd(),"/data/",modelname,".scs");
+  // fputs(stderr, strcat("filename = ", filename, "\n"));
+
+
+  fID = fopen(filename, "W");
+  if (fID != NULL) {
+
+    // file header
+    fputs(fID,"// Inductor model file created by Muehlhaus Inductor Toolkit Open (c) www.muehlhaus.com");
+    fputs(fID,"// pin 1 is EM port 1, pin 2 is EM port 2, pin 3 is substrate node");
+
+    fputs(fID,"simulator lang=spectre");
+    fputs(fID, sprintf("subckt %s 1 2 3", modelname));
+
+    // series path
+    fputs(fID, sprintf("SRL1R (1 100) resistor r=%.5e", k*Rs));
+    fputs(fID, sprintf("SRL1L (100 101) inductor l=%.5e", k*Ls));
+
+    fputs(fID, sprintf("C4 (1 2) capacitor c=%.5e", Cp));
+    fputs(fID, sprintf("C5 (101 104) capacitor c=%.5e", Cp2));
+
+
+    fputs(fID, sprintf("L1 (101 102) inductor l=%.5e", Ls*(1-2*k)));
+    fputs(fID, sprintf("R1 (102 103) resistor r=%.5e", Rs*(1-2*k)));
+
+    fputs(fID, sprintf("PRL1R (103 104) resistor r=%.5e", Rk));
+    fputs(fID, sprintf("PRL1L (103 104) inductor l=%.5e", Lk));
+
+    fputs(fID, sprintf("SRL2R (104 105) resistor r=%.5e", k*Rs));
+    fputs(fID, sprintf("SRL2L (105 2) inductor l=%.5e", k*Ls));
+
+    // shunt path
+    fputs(fID, sprintf("C2 (101 200) capacitor c=%.5e", Cox1));
+    fputs(fID, sprintf("PRC1C (200 3) capacitor c=%.5e", Csub1));
+    fputs(fID, sprintf("PRC1R (200 3) resistor r=%.5e", Rsub1));
+
+    fputs(fID, sprintf("C3 (104 300) capacitor c=%.5e", Cox2));
+    fputs(fID, sprintf("PRC2C (300 3) capacitor c=%.5e", Csub2));
+    fputs(fID, sprintf("PRC2R (300 3) resistor r=%.5e", Rsub2));
+
+    // footer
+    fputs(fID, sprintf("ends %s", modelname));
+    fclose(fID);
+
+    return 1;
+
+  } else {
+    // Cannot create output file
+    print_function_error("Muehlhaus_WriteNetlist_2Port", strcat(sFileName, " not a valid file."));
+    return 0;
+    
+  } //if
+
+}
+
+
+defun Muehlhaus_WriteOptResults_3Port (modelname, Ls, kL, Rs, Cp, Cp2, Rk, Lk, Cox1, Cox2, Cox3, Csub1, Csub2, Csub3, Rsub1, Rsub2, Rsub3, k) {
+  // write optimization results to the text files, so that we can use them for creating a lumped model in ADS
+  
+  Muehlhaus_write_string("/inductor_toolkit/optimized_modelname.csv",modelname);
+
+  // values are passed as STRING, not float
+
+  Muehlhaus_write_string("/inductor_toolkit/optimized_Ls.csv",Ls);
+  Muehlhaus_write_string("/inductor_toolkit/optimized_kL.csv",kL);
+  Muehlhaus_write_string("/inductor_toolkit/optimized_Rs.csv",Rs);
+  Muehlhaus_write_string("/inductor_toolkit/optimized_Cp.csv",Cp);
+  Muehlhaus_write_string("/inductor_toolkit/optimized_Cp2.csv",Cp2);
+  Muehlhaus_write_string("/inductor_toolkit/optimized_Rk.csv",Rk);
+  Muehlhaus_write_string("/inductor_toolkit/optimized_Lk.csv",Lk);
+  Muehlhaus_write_string("/inductor_toolkit/optimized_Cox1.csv",Cox1);
+  Muehlhaus_write_string("/inductor_toolkit/optimized_Cox2.csv",Cox2);
+  Muehlhaus_write_string("/inductor_toolkit/optimized_Cox3.csv",Cox3);
+  Muehlhaus_write_string("/inductor_toolkit/optimized_Csub1.csv",Csub1);
+  Muehlhaus_write_string("/inductor_toolkit/optimized_Csub2.csv",Csub2);
+  Muehlhaus_write_string("/inductor_toolkit/optimized_Csub3.csv",Csub3);
+  Muehlhaus_write_string("/inductor_toolkit/optimized_Rsub1.csv",Rsub1);
+  Muehlhaus_write_string("/inductor_toolkit/optimized_Rsub2.csv",Rsub2);
+  Muehlhaus_write_string("/inductor_toolkit/optimized_Rsub3.csv",Rsub3);
+  Muehlhaus_write_string("/inductor_toolkit/optimized_k.csv",k);
+
+  return 1;
+
+}
+
+
+
+defun Muehlhaus_WriteNetlist_3Port (modelname, Ls, kL, Rs, Cp, Cp2, Rk, Lk, Cox1, Cox2, Cox3, Csub1, Csub2, Csub3, Rsub1, Rsub2, Rsub3, k) 
+{
+
+  // safely handle data with multiple dimensions from optimization
+  // we just need one value, because they are all the same
+  
+  Ls = get_single_value (Ls);
+  kL = get_single_value (kL);
+  Rs = get_single_value (Rs);
+  Cp = get_single_value (Cp);
+  Cp2 = get_single_value (Cp2);
+  Rk = get_single_value (Rk);
+  Lk = get_single_value (Lk);
+  Cox1 = get_single_value (Cox1);
+  Cox2 = get_single_value (Cox2);
+  Cox3 = get_single_value (Cox3);
+  Csub1 = get_single_value (Csub1);
+  Csub2 = get_single_value (Csub2);
+  Csub3 = get_single_value (Csub3);
+  Rsub1 = get_single_value (Rsub1);
+  Rsub2 = get_single_value (Rsub2);
+  Rsub3 = get_single_value (Rsub3);
+  k = get_single_value (k);
+
+
+  /*
+  fputs(stderr, strcat("Ls = ", identify_value(Ls)));
+  fputs(stderr, strcat("kL = ", identify_value(kL)));
+  fputs(stderr, strcat("Rs = ", identify_value(Rs)));
+  fputs(stderr, strcat("Cp = ", identify_value(Cp)));
+  fputs(stderr, strcat("Cp2 = ", identify_value(Cp2)));
+  fputs(stderr, strcat("Rk = ", identify_value(Rk)));
+  fputs(stderr, strcat("Lk = ", identify_value(Lk)));
+  fputs(stderr, strcat("Cox1 = ", identify_value(Cox1)));
+  fputs(stderr, strcat("Cox2 = ", identify_value(Cox2)));
+  fputs(stderr, strcat("Cox3 = ", identify_value(Cox3)));
+  fputs(stderr, strcat("Csub1 = ", identify_value(Csub1)));
+  fputs(stderr, strcat("Csub2 = ", identify_value(Csub2)));
+  fputs(stderr, strcat("Csub3 = ", identify_value(Csub3)));
+  fputs(stderr, strcat("Rsub1 = ", identify_value(Rsub1)));
+  fputs(stderr, strcat("Rsub2 = ", identify_value(Rsub2)));
+  fputs(stderr, strcat("Rsub3 = ", identify_value(Rsub3)));
+  fputs(stderr, strcat("k = ", identify_value(k)));
+  */  
+
+
+  // write optimization results to the text files, 
+  // so that we can use them for creating a lumped model in ADS
+  Muehlhaus_WriteOptResults_3Port (modelname, Ls, kL, Rs, Cp, Cp2, Rk, Lk, Cox1, Cox2, Cox3, Csub1, Csub2, Csub3, Rsub1, Rsub2, Rsub3, k);  
+
+  // write the pi model netlist corresponding to topology in circuitmodel_2port
+  // actual scs file output
+  
+  decl fID;
+
+  // fputs(stderr,"\n Starting scs netlist output");
+  // fputs(stderr, strcat("modelname = ", modelname, "\n"));
+
+  decl filename = strcat(getcwd(),"/data/",modelname,".scs");
+  // fputs(stderr, strcat("filename = ", filename, "\n"));
+
+
+
+  fID = fopen(filename, "W");
+  if (fID != NULL) {
+
+    // file header
+    fputs(fID,"// Inductor model file created by Muehlhaus Inductor Toolkit Open (c) www.muehlhaus.com");
+    fputs(fID,"// pin 1 is EM port 1, pin 2 is EM port 2, pin 3 is center tap, pin 4 is substrate node");
+    
+    fputs(fID,"simulator lang=spectre");
+    fputs(fID, sprintf("subckt %s 1 2 3 4", modelname));
+
+    // series path
+    fputs(fID, sprintf("SRL1R (1 100) resistor r = %.5e", k*Rs));
+    fputs(fID, sprintf("SRL1L (100 101) inductor l = %.5e", k*Ls));
+
+    fputs(fID, sprintf("L1 (101 102) inductor l=%.5e", 0.5 * Ls *(1-2*k)));
+    fputs(fID, sprintf("R1 (102 103) resistor r=%.5e", 0.5 * Rs *(1-2*k)));
+
+    fputs(fID, sprintf("C4 (1 3) capacitor c=%.5e", 2 * Cp));
+    fputs(fID, sprintf("C6 (101 3) capacitor c=%.5e", 2 * Cp2));
+
+
+    fputs(fID, sprintf("PRL1R (103 3) resistor r=%.5e", 0.5 * Rk));
+    fputs(fID, sprintf("PRL1L (103 3) inductor l=%.5e", 0.5 * Lk));
+
+    fputs(fID, sprintf("PRL2R (3 104) resistor r=%.5e", 0.5 * Rk));
+    fputs(fID, sprintf("PRL2L (3 104) inductor l=%.5e", 0.5 * Lk));
+
+    fputs(fID, sprintf("R2 (104 105) resistor r=%.5e", 0.5 * Rs*(1-2*k)));
+    fputs(fID, sprintf("L2 (105 106) inductor l=%.5e", 0.5 * Ls*(1-2*k)));
+
+    fputs(fID, sprintf("C5 (3 2) capacitor c=%.5e", 2 * Cp));
+    fputs(fID, sprintf("C7 (3 106) capacitor c=%.5e", 2 * Cp2));
+
+    fputs(fID, sprintf("SRL2R (106 107) resistor r=%.5e", k*Rs));
+    fputs(fID, sprintf("SRL2L (107 2) inductor l=%.5e", k*Ls));
+
+    // coupling between symmetric halfs
+    fputs(fID, sprintf("M1 mutual_inductor coupling=%.5e ind1=L1 ind2=L2", kL));
+
+    // shunt path
+    fputs(fID, sprintf("C2 (101 200) capacitor c=%.5e", Cox1));
+    fputs(fID, sprintf("PRC1C (200 4) capacitor c=%.5e", Csub1));
+    fputs(fID, sprintf("PRC1R (200 4) resistor r=%.5e", Rsub1));
+
+    fputs(fID, sprintf("C3 (106 300) capacitor c=%.5e", Cox2));
+    fputs(fID, sprintf("PRC2C (300 4) capacitor c=%.5e", Csub2));
+    fputs(fID, sprintf("PRC2R (300 4) resistor r=%.5e", Rsub2));
+
+    fputs(fID, sprintf("C8 (3 400) capacitor c=%.5e", Cox3));
+    fputs(fID, sprintf("PRC3C (400 4) capacitor c=%.5e", Csub3));
+    fputs(fID, sprintf("PRC3R (400 4) resistor r=%.5e", Rsub3));
+
+
+    // footer
+    fputs(fID, sprintf("ends %s", modelname));
+    fclose(fID);
+
+    return 1;
+  
+  } else {
+  
+    // cannot create output file
+    print_function_error("Muehlhaus_WriteNetlist_3Port", strcat(sFileName, " not a valid file."));
+    return 0;
+    
+  } //if
+  
+}
+
+
+/////////////////// select subset from 1D or 2D sweep data //////////////
+
+defun Muehlhaus_extract_data (theData, selectedIndices)
+{
+// This function will extract one or more array from one- or two-dimensional sweep data
+// Sweep data is passed with parameter theData
+// For 2D sweep data, first dimension is a parameter sweep and second dimension is frequency
+// For 1D sweep data, first dimension is a parameter sweep
+// Parameter selectedIndices holds an array of indices that comes from the find function
+// For "manual" use, the indices can also be specified like this: [0,1,2]
+
+  // get dimensionality ofthe data
+  decl DataDimension = sweep_dim(theData);
+  decl IndexDimension = sweep_dim(selectedIndices);
+  
+  //fputs(stderr, sprintf("theData=%s", identify_value(theData)));
+  //fputs(stderr, sprintf("DataDimension=%i", DataDimension));
+  //fputs(stderr, sprintf("IndexDimension=%i", IndexDimension));
+  
+
+  if (((DataDimension==1)||(DataDimension==2)) && (IndexDimension==1)) {
+    // Data and index dimension is valid, continue
+
+    decl DataSize = 0;
+    decl IndexSize = sweep_size(selectedIndices);
+    decl NewData;
+    // Create new 2-D sweep to hold the sorted/extracted data
+    // by copying the Data matrix (or part of it)
+    // Don't care about the content now, we will fix that later
+    if (DataDimension==1) {
+      DataSize = sweep_size(theData);
+      NewData = theData[0::IndexSize-1];
+    } else {
+      DataSize = sweep_size(theData[::,0]);
+      NewData = theData[0::IndexSize-1,::];
+    }
+
+    // Copy the correct values into NewData
+    decl i; // sweep index
+    decl theIndex;
+    for ( i=0; i<IndexSize; i++ ) {
+      theIndex = selectedIndices[i];
+      if (DataDimension==1) {
+        NewData[i] = theData[theIndex];
+      } else {
+        NewData[i,::] = theData[theIndex,::];
+      };
+    }
+
+    return NewData;
+  } else {
+  
+    if (DataDimension==0)
+    {
+      // we only have a single data point
+      return theData; 
+      
+    } else {
+      // Data and index dimension is not what we need, quit
+      print_function_error("Muehlhaus_extract_data", "First argument (data) must have 1 or 2 dimensions, second argument (index) must have 1 dimension");
+      return 0;
+    }  
+  }
+}
+
+
+//////////////////////////// try to interpolate width from top list /////////////////////////////
+
+defun Muehlhaus_new_width (Q_sorted, N_sorted, dout_sorted, w_sorted, s_sorted)
+{
+  
+  // find N and s for the best inductor
+  decl DataSize = sweep_size(Q_sorted);
+  decl Q_top = Q_sorted[0];
+  decl N_top = N_sorted[0];
+  decl w_top = w_sorted[0];
+  decl s_top = s_sorted[0];
+  decl list_of_similar = list();
+  decl new_width;
+ 
+  // find any other inductors in the list with the same N and s
+    // fputs(stderr, "\nSearching for similar inductors with the same N and s");
+  
+    decl i; // sweep index
+    for ( i=1; i<DataSize; i++ ) {
+      if ((abs(N_sorted[i]-N_top)<0.01) && (abs(s_sorted[i]-s_top)<0.01)) 
+      {
+        // same N and same s
+        // fputs(stderr, sprintf("   similar inductor found in toplist with w=%.2f, N=%.1f and s=%.2f ", w_sorted[i], N_sorted[i], s_sorted[i] ));
+        list_of_similar = append(list_of_similar, list(i));
+      }
+    }
+    
+    
+    // now we have a list with the indices of similar inductors, for interpolation
+    if (listlen (list_of_similar) > 1) 
+    {
+      // fputs(stderr, sprintf("Enough similar inductors for width interpolation"));
+      
+      decl i_2nd = nth(0,list_of_similar);
+      decl i_3rd = nth(1,list_of_similar);
+
+      decl w_2nd = w_sorted[i_2nd];
+      decl w_3rd = w_sorted[i_3rd];
+
+      decl Q_2nd = Q_sorted[i_2nd];
+      decl Q_3rd = Q_sorted[i_3rd];
+
+      // fputs(stderr, strcat("  Best simulated is w=", identify_value(w_top)," with Q=", identify_value(Q_top)));
+      // fputs(stderr, strcat("  2nd best is w=", identify_value(w_2nd)," with Q=", identify_value(Q_2nd)));
+      // fputs(stderr, strcat("  3rd best is w=", identify_value(w_3rd)," with Q=", identify_value(Q_3rd)));
+      
+      
+      decl x1,x2,x3,y1,y2,y3;
+      decl xs;
+      decl w_new;
+      
+      
+      if ((Q_top>0) && (Q_2nd>0) && (Q_3rd>0) && (Q_top-Q_2nd>0.1) && (Q_2nd - Q_3rd > 0.1)) 
+      {
+
+        x1 = w_3rd;  // order doesn't matter
+        y1 = Q_3rd;
+        x2 = w_top;
+        y2 = Q_top;
+        x3 = w_2nd;
+        y3 = Q_2nd;
+
+        xs = (sqr(x2)*(y3 - y1) - sqr(x1)*(y3 - y2) - sqr(x3)*(y2 - y1)) / (2*(x2*(y3 - y1) - x1*(y3 - y2) - x3*(y2 - y1)));
+
+        // calculate corresponding Q, so that we are sure we have found the MAXIMUM and not the MINIMUM
+
+        decl a = (x1*(y2-y3)+x2*(y3-y1)+x3*(y1-y2))/((x1-x2)*(x1-x3)*(x3-x2));
+        decl b = (sqr(x1)*(y2-y3)+sqr(x2)*(y3-y1)+sqr(x3)*(y1-y2))/((x1-x2)*(x1-x3)*(x2-x3));
+        decl c = (sqr(x1)*(x2*y3-x3*y2)+x1*(sqr(x3)*y2-sqr(x2)*y3)+x2*x3*y1*(x2-x3))/((x1-x2)*(x1-x3)*(x2-x3));
+
+        decl Qs = a*sqr(xs)+b*xs+c;
+
+        // fputs(stderr, strcat("Interpolation:"));
+        // fputs(stderr, sprintf("  Calculated peak: w=%.2f with Q=%.2f and N=%.1f, s=%.2f ", xs, Qs, N_top, s_top ));
+        
+        if (Qs < Q_top) 
+        {
+          // fputs(stderr, strcat("   Dropped, that was the peak for minimum Q ! "));
+          // revert back to maximum from EM simulation
+          xs = w_top;
+        }
+
+
+        if ((xs < min_linewidth) || (xs >max_linewidth)) 
+        {
+          // out of range 
+          if  (xs > max_linewidth)
+          {         
+            fputs(stderr, sprintf("Width for finetune: use maxmimum allowed (%.2f um)",max_linewidth)); 
+            new_width = max_linewidth;
+          } else {
+            fputs(stderr, sprintf("Width for finetune: use minimum allowed (%.2f um)", min_linewidth));
+            new_width = min_linewidth;
+          }          
+        } else {
+          // normal case, interpolation result is in valid range
+          new_width = xs;
+        }
+
+      
+      } else {
+        // we can't interpolate from negative Q factor
+        fputs(stderr, sprintf("No interpolation from negative Q factors, keep width (%.2f um)",w_top)); 
+        new_width = w_top;
+      }
+      
+         
+    
+    } else {
+      // no other inductor with such parameters
+      // return the actual value, because we can't interpolate
+      fputs(stderr, sprintf("Not enough similar inductors for width interpolation"));
+      new_width = w_top;    
+    }
+    
+    return new_width;
+    
+}
+
+
+////////////// inductance /////////////////
+
+defun Ldiff(S)
+// series inductance for differential feed
+
+// input parameters: 2-port or 3-port S-parameters
+// output parameters: vector with values over frequency
+
+{
+  decl Z = stoz(S);
+  decl omega = indep(S) * 2 * pi;
+  decl Zdiff = Z(1,1) - Z(1,2) - Z(2,1) + Z(2,2);
+  decl result = imag(Zdiff) / omega;
+  return result;
+}
+
+defun Lser(S)
+// series inductance for normal 2-port feed
+
+// input parameters: 2-port or 3-port S-parameters
+// output parameters: vector with values over frequency
+
+{
+  decl Z = stoz(S);
+  decl omega = indep(S) * 2 * pi;
+  decl result = imag((Z(1,1)*Z(2,2)-Z(1,2)*Z(2,1))/Z(2,1)) / omega;
+  return result;
+}
+
+
+defun L1port(S)
+{
+  // inductance of simple 1-port
+  decl Z = stoz(S);
+  decl omega = indep(S) * 2 * pi;
+  decl result = imag(Z) / omega;
+  return result;
+    
+}  
+  
+
+////////////// resistance /////////////////
+
+defun Rdiff(S)
+// series inductance for differential feed
+
+// input parameters: 2-port or 3-port S-parameters
+// output parameters: vector with values over frequency
+
+{
+  decl Z = stoz(S);
+  decl Zdiff = Z(1,1) - Z(1,2) - Z(2,1) + Z(2,2);
+  decl result = real(Zdiff);
+  return result;
+}
+
+defun Rser(S)
+// series inductance for normal 2-port feed
+
+// input parameters: 2-port or 3-port S-parameters
+// output parameters: vector with values over frequency
+
+{
+  decl Z = stoz(S);
+  decl result = real( (Z(1,1)*Z(2,2)-Z(1,2)*Z(2,1))/Z(2,1));
+  return result;
+}
+
+
+defun R1port(S)
+{
+  // resistance of simple 1-port
+  decl Z = stoz(S);
+  decl result = real(Z);
+  return result;
+    
+}  
+
+
+////////////// Q factor /////////////////
+
+
+defun Qdiff(S)
+// Q factor for differential feed
+
+// input parameters: 2-port or 3-port S-parameters
+// output parameters: vector with values over frequency
+
+{
+  decl Z = stoz(S);
+  decl Zdiff = Z(1,1) - Z(1,2) - Z(2,1) + Z(2,2);
+  decl result = imag(Zdiff) / real(Zdiff);
+  return result;
+}
+
+defun Qser(S)
+// Q factor for normal 2-port feed
+
+// input parameters: 2-port or 3-port S-parameters
+// output parameters: vector with values over frequency
+
+{
+  decl Z = stoz(S);
+  decl arg = Z(2,2)/(Z(1,1)*Z(2,2)-Z(1,2)*Z(2,1));
+  decl result = - imag(arg) / real(arg);
+  return result;
+}
+
+
+defun Q1port(S)
+{
+  // q of simple 1-port
+  decl Z = stoz(S);
+  decl result = imag(Z)/real(Z);
+  return result;
+    
+}  
+
+
+////////////// substrate shunt elements ///////////////
+
+
+defun Cshunt2(S)
+// Shunt C (one half) for 2-port data
+
+// input parameters: 2-port S-parameters
+// output parameters: vector with values over frequency
+
+{
+  decl Y = stoy(S);
+  decl omega = indep(S) * 2 * pi;
+  decl result = 1 /(-omega*imag(1/(Y(2,1)+Y(1,1))));
+  return result;
+}
+
+
+defun Cshunt2_2(S)
+// Shunt C (one half) for 2-port data
+
+// input parameters: 2-port S-parameters
+// output parameters: vector with values over frequency
+
+{
+  decl Y = stoy(S);
+  decl omega = indep(S) * 2 * pi;
+  decl result = 1 /(-omega*imag(1/(Y(2,1)+Y(2,2))));
+  return result;
+}
+
+
+defun Cshunt1(S)
+// Shunt C for 1-port data
+
+// input parameters: 1-port S-parameters
+// output parameters: vector with values over frequency
+
+{
+  decl Y = stoy(S);
+  decl omega = indep(S) * 2 * pi;
+  decl result = 1 /(-omega*imag(1/Y));
+  return result;
+}
+
+
+
+defun Rshunt2(S)
+// Shunt R (one half) for 2-port data
+
+// input parameters: 2-port S-parameters
+// output parameters: vector with values over frequency
+
+{
+  decl Y = stoy(S);
+  decl result = real (1/(Y(2,1)+Y(1,1) ));
+  return result;
+}
+
+
+
+
+/////////////////////////////////////////////////////////////////////
+
+defun get_PDK_path()
+{
+
+  // change for ADS 2017: we can't use getcwd() at startup because that no longer returns workspace location
+  // instead, we use a temp directory that we extract from AEL function tmpnam().
+  
+  // get tmpnam and extract the path only, without filename
+  decl tempname = tmpnam();
+  decl stringlength;
+  while ((rightstr(tempname,1) != "/") && (rightstr(tempname,1) != "\\")) {
+    stringlength = strlen(tempname);
+    tempname = leftstr(tempname, stringlength -1);
+  }
+
+  decl filename = strcat (tempname,"PDK_path.loc");
+  decl fID = fopen(filename, "R");  // open file for reading
+  decl fline;
+
+  if (fID != NULL) {
+    fline=fgets(fID);
+    fclose(fID);  // finally close file
+    // fputs(stderr, strcat("dk_defined_fun: Success reading ", identify_value(filename)));
+    fputs(stderr, strcat("dk_defined_fun: PDK location: ", identify_value(fline)));
+  } else {
+    fputs(stderr, strcat("dk_defined_fun: ** ERROR ** reading ", identify_value(filename)));
+    fline = "";
+  };
+  
+  // hopefully we could read a string
+  return fline;
+
+}
+
+
+
+// =========================== function to run when loaded this ael file ====================
+
+// get the path top the PDK directory
+decl MUEHLHAUS_INDUCTOR_PDK_PATH = get_PDK_path ();
+
+
+// When dk_defined_fun is loaded, it might be loaded twice, and only the second loading works in our PDK context
+// Not sure why ADS does that, but we want to surpress warnings that are displayed for the first invalid load.
+if (MUEHLHAUS_INDUCTOR_PDK_PATH != "") 
+{ 
+
+  // fputs(stderr,strcat("PDK path used in dk_defined_fun: ",MUEHLHAUS_INDUCTOR_PDK_PATH));
+
+  // load technology related settings
+  load(strcat(MUEHLHAUS_INDUCTOR_PDK_PATH, "/configuration/technology"));
+  load(strcat(MUEHLHAUS_INDUCTOR_PDK_PATH, "/configuration/preferences"));
+  load(strcat(MUEHLHAUS_INDUCTOR_PDK_PATH, "/configuration/calibration"));
+
+  // load shared utility functions
+  load(strcat(MUEHLHAUS_INDUCTOR_PDK_PATH, "/de/ael/shared_utilities"));
+
+  // load shared min diameter code from /circuit/ael/min_diameter
+  load(strcat(MUEHLHAUS_INDUCTOR_PDK_PATH, "/circuit/ael/min_diameter"));
+}  
+
+

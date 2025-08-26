@@ -1,0 +1,10 @@
+create_item("ind_square_diff_3port","ind_square_diff_3port","X",16,-1,NULL,"Component Parameters",NULL,"%43?global %;%d:%t %# %44?0%:%31?%C%:_net%c%;%;%e %b%r%8?%29?%:%30?%p %:%k%?[%1i]%;=%p %;%;%;%e%e","ind_square_diff_3port","%t%b%r%38?%:\n%30?%s%:%k%?[%1i]%;=%s%;%;%e%e%;","",0,NULL,0,
+create_parm("N","number of turns",68608,"StdFormSet",-1,prm("StdForm","3"),
+    list(dm_create_cb(PARM_MODIFIED_CB,"mi_ind_diff_octa_calcInductance","N",TRUE))),
+create_parm("D","outer diameter",68608,"StdFormSet",5,prm("StdForm","250 um"),
+    list(dm_create_cb(PARM_MODIFIED_CB,"mi_ind_diff_octa_calcInductance","N",TRUE))),
+create_parm("w","width",68608,"StdFormSet",5,prm("StdForm","10 um"),
+    list(dm_create_cb(PARM_MODIFIED_CB,"mi_ind_diff_octa_calcInductance","N",TRUE))),
+create_parm("s","spacing",68608,"StdFormSet",5,prm("StdForm","5 um"),
+    list(dm_create_cb(PARM_MODIFIED_CB,"mi_ind_diff_octa_calcInductance","N",TRUE))),
+create_parm("L","estimated inductance",66049,"StdFormSet",3,prm("StdForm","3.168 nH")));

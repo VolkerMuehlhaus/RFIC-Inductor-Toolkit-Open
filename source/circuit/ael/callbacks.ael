@@ -1,0 +1,909 @@
+defun mi_ind_simple_rect_calcInductance(cbP, clientData, callData )
+{
+    decl w, s, N, La, Lb, L;
+    decl dependentParmData;
+
+    w=pcb_get_mks(callData, "w");
+    s=pcb_get_mks(callData, "s");
+    La=pcb_get_mks(callData, "La");
+    Lb=pcb_get_mks(callData, "Lb");
+    N=pcb_get_mks(callData, "N");
+
+	if ( (w == NULL ) || (s == NULL) || (N == NULL) || (La == NULL) || (Lb == NULL))
+    	return(dependentParmData);
+
+    if(N < 1 )
+    {
+        de_info("Minimum number of turns is N=1.  Value has been reset to 1.");
+		N=1;
+		dependentParmData=pcb_set_mks(dependentParmData, "N", N);
+    }
+
+
+	// check dimension for valid layout
+	decl fullturns = int(N);
+	decl quarterturns = round(4*(N - fullturns));
+
+	decl minLa;
+	decl minLb;
+
+	if (quarterturns == 0)
+	{
+		minLa = 2*fullturns*w + 2*(fullturns-1)*s + w + 2*s;
+		minLb = 2*fullturns*w + 2*(fullturns-1)*s + w + 2*s;
+
+	}
+	else if (quarterturns == 1)
+	{
+		// one quarter turn
+		minLa = 2*fullturns*w + 2*(fullturns-1)*s + 2*w + 2*s;
+		minLb = 2*fullturns*w + 2*(fullturns-1)*s +   w + 2*s;
+	}
+
+	else if (quarterturns == 2)
+	{
+		// two quarter turns
+		minLa = (2*fullturns+3)*w + 2*(fullturns)*s;
+		minLb = (2*fullturns+2)*w + 2*(fullturns)*s + s;
+	}
+	else
+	{
+		// three quarter turns
+		minLa = (2*fullturns+2)*w + 2*(fullturns)*s + s;
+		minLb = (2*fullturns+2)*w + 2*(fullturns)*s + w + 2*s;
+	}
+
+
+	// apply correction if needed
+	if (La < minLa)
+	{
+        de_info(strcat("La is to small for this parameter combination. Value is reset to minimum possible La value."));
+		La = minLa;
+		dependentParmData=pcb_set_mks(dependentParmData, "La", La);
+	}
+
+	if (Lb < minLb)
+	{
+        de_info(strcat("Lb is to small for this parameter combination. Value is reset to minimum possible La value."));
+		Lb = minLb;
+		dependentParmData=pcb_set_mks(dependentParmData, "Lb", Lb);
+	}
+
+
+    // calculate estimated inductance
+    decl dout = sqrt(La*Lb);    				// average outer diameter
+    decl din  = dout - 2*N*w - 2*(N-1)*s;	// average inner diameter
+    decl davg = (dout + din) / 2;			// average diameter
+    decl rho  = (dout-din)/(dout+din); 		// fill factor
+
+
+	// current sheet expression for a SQUARE spiral (we abuse it for rectangle)
+	L= 2*u0*N*N*davg/PI * (ln(2.067/rho)+0.178*rho+0.125*rho*rho);
+
+    dependentParmData=pcb_set_mks(dependentParmData, "L", val(sprintf("%.2e",L)));
+
+    return(dependentParmData);
+}
+
+
+
+
+defun mi_ind_square_calcInductance(cbP, clientData, callData )
+{
+    decl w, s, N, D, L;
+    decl dependentParmData;
+
+    w=pcb_get_mks(callData, "w");
+    s=pcb_get_mks(callData, "s");
+    D=pcb_get_mks(callData, "D");
+    N=pcb_get_mks(callData, "N");
+
+    decl K1 = K1_squaresingle;
+    decl K2 = K2_squaresingle;
+    decl L0 = L0_squaresingle;
+    
+    if ( (w == NULL ) || (s == NULL) || (N == NULL) || (D == NULL))
+    return(dependentParmData);
+
+    if(N < 1 )
+    {
+        de_info("Minimum number of turns is N=1.  Value has been reset to 1.");
+		N=1;
+		dependentParmData=pcb_set_mks(dependentParmData, "N", N);
+    }
+
+
+    // check dimension for valid layout
+    decl fullturns = int(N);
+    decl quarterturns = round(4*(N - fullturns));
+
+    // minimum diameter for this layout option
+    decl minD =  square_single_min_diameter(N,w,s);
+
+
+    // apply correction if needed
+    if (D < minD)
+    {
+    de_info(strcat("D is to small for this parameter combination. Value is reset to minimum possible D value."));
+	    D = minD;
+	    dependentParmData=pcb_set_mks(dependentParmData, "D", D);
+    }
+
+
+
+    // calculate estimated inductance
+    decl dout = D; 
+    decl din  = dout - 2*N*w - 2*(N-1)*s;	// average inner diameter
+    decl davg = (dout + din) / 2;			// average diameter
+    decl rho  = (dout-din)/(dout+din); 		// fill factor
+
+
+    // modified Wheeler, to match the cal factors in synthesis
+    L= L0 + K1 * u0 * N*N * davg / (1 + K2 * rho);
+
+    dependentParmData=pcb_set_mks(dependentParmData, "L", val(sprintf("%.2e",L)));
+
+    return(dependentParmData);
+}
+
+
+defun mi_ind_diff_octa_calcInductance(cbP, clientData, callData )
+{
+    decl w, s, N, D, L;
+    decl dependentParmData;
+
+    w=pcb_get_mks(callData, "w");
+    s=pcb_get_mks(callData, "s");
+    D=pcb_get_mks(callData, "D");
+    N=pcb_get_mks(callData, "N");
+ 
+    decl K1 = K1_octadiff;
+    decl K2 = K2_octadiff;
+    decl L0 = L0_octadiff;
+
+ 
+    if ( (w == NULL ) || (s == NULL) || (N == NULL) || (D == NULL))
+    return(dependentParmData);
+
+    if(N < 1 )
+    {
+        de_info("Minimum number of turns is N=1.  Value has been reset to 1.");
+	N=2;
+	dependentParmData=pcb_set_mks(dependentParmData, "N", N);
+    }
+
+    if(N - int(N) > 0.01)
+    {
+        de_info("Only full turns are allowed.  Converting to nearest full turn.");
+        dependentParmData=pcb_set_mks(dependentParmData, "N", round(N));
+    }
+    
+    // check dimension for valid layout
+    decl D_min = octa_min_diameter(N,w,s);
+    
+    // fputs(stderr, strcat("D_min= ", identify_value(D_min)));
+    // fputs(stderr, strcat("D= ", identify_value(D)));
+        
+    if (D < D_min )  
+    {
+      D = D_min + 1e-9;
+      //fputs(stderr, strcat("Updating diameter, new D= ", identify_value(D)));
+      de_info("Diameter too small. Value has been reset.");
+      dependentParmData=pcb_set_mks(dependentParmData, "D", D);
+      // fputs(stderr, strcat("new dout = ", identify_value(D)));
+    }
+    
+    
+    // calculate estimated inductance
+    // get diamater again, just in case it was corrected
+
+    decl dout = D;    						// outer diameter
+    decl din  = dout - 2*N*w - 2*(N-1)*s;	//  inner diameter
+    decl davg = (dout + din) / 2;			// average diameter
+    decl rho  = (dout-din)/(dout+din); 		// fill factor
+
+
+    // modified Wheeler, to match the cal factors in synthesis
+    L= L0 + K1 * u0 * N*N * davg / (1 + K2 * rho);
+    dependentParmData=pcb_set_mks(dependentParmData, "L", val(sprintf("%.2e",L)));
+
+    return(dependentParmData);
+}
+
+
+
+defun mi_interleaved_octa_calcInductance(cbP, clientData, callData )
+// Muehlhaus layout with crossovers on all 4 sides
+{
+    decl w, s, D, L1, L2;
+    decl dependentParmData;
+
+    w=pcb_get_mks(callData, "w");
+    s=pcb_get_mks(callData, "s");
+    D=pcb_get_mks(callData, "D");
+    decl N1=pcb_get_mks(callData, "N1");		
+    decl N2=pcb_get_mks(callData, "N2");		
+ 
+    decl K1 = K1_octa_interleaved;
+    decl K2 = K2_octa_interleaved;
+    decl L0 = L0_octa_interleaved;
+
+ 
+    if ( (w == NULL ) || (s == NULL) || (N1 == NULL) || (N2 == NULL) || (D == NULL))
+    return(dependentParmData);
+
+    if(N1 < 1 )
+    {
+        de_info("Minimum number of turns is N=1.  Value has been reset to 1.");
+	N1=1;
+	dependentParmData=pcb_set_mks(dependentParmData, "N1", N1);
+    }
+
+    if(N2 < 1 )
+    {
+        de_info("Minimum number of turns is N=1.  Value has been reset to 1.");
+	N2=1;
+	dependentParmData=pcb_set_mks(dependentParmData, "N1", N1);
+    }
+
+
+    if(N1 - int(N1) > 0.01)
+    {
+        de_info("Only full turns are allowed.  Converting to nearest full turn.");
+        dependentParmData=pcb_set_mks(dependentParmData, "N1", round(N1));
+    }
+
+    if(N2 - int(N2) > 0.01)
+    {
+        de_info("Only full turns are allowed.  Converting to nearest full turn.");
+        dependentParmData=pcb_set_mks(dependentParmData, "N2", round(N2));
+    }
+
+    
+    // enforce N2=N1;
+    // dependentParmData=pcb_set_mks(dependentParmData, "N2", N);
+    
+    // check dimension for valid layout
+    decl D_min = interleaved_min_diameter(N1,N2,w,s, TRUE);
+    
+    // fputs(stderr, strcat("D_min= ", identify_value(D_min)));
+    // fputs(stderr, strcat("D= ", identify_value(D)));
+        
+    if (D < D_min )  
+    {
+      D = D_min + 1e-9;
+      //fputs(stderr, strcat("Updating diameter, new D= ", identify_value(D)));
+      de_info("Diameter too small. Value has been reset.");
+      dependentParmData=pcb_set_mks(dependentParmData, "D", D*1.01);
+      // fputs(stderr, strcat("new dout = ", identify_value(D)));
+    }
+    
+    
+    // calculate estimated inductance
+    // get diamater again, just in case it was corrected
+
+    // layout that symmetric for primary and secondary
+    decl dout = 0.5*(D + (D-w-s));    	// special layout, changes diameter half way!
+    
+    decl N_common = smaller(N1,N2);
+    decl N1_extra  = N1-N_common;
+    decl N2_extra  = N2-N_common;
+        
+    decl din1  = dout - 4*N_common*w - 4*(N_common-1)*s - N1_extra * (w+s);
+    decl din2  = dout - 4*N_common*w - 4*(N_common-1)*s - N2_extra * (w+s);
+    
+    decl davg1 = (dout + din1) / 2;			// average diameter
+    decl davg2 = (dout + din2) / 2;			// average diameter
+    decl rho1  = (dout-din1)/(dout+din1); 		// fill factor
+    decl rho2  = (dout-din2)/(dout+din2); 		// fill factor
+    // modified Wheeler, to match the cal factors in synthesis
+    L1= L0 + K1 * u0 * N1*N1 * davg1 / (1 + K2 * rho1);
+    L2= L0 + K1 * u0 * N2*N2 * davg2 / (1 + K2 * rho2);
+    dependentParmData=pcb_set_mks(dependentParmData, "L1", val(sprintf("%.2e",L1)));
+    dependentParmData=pcb_set_mks(dependentParmData, "L2", val(sprintf("%.2e",L2)));
+   
+
+    return(dependentParmData);
+}
+
+
+defun mi_interleaved_square_calcInductance(cbP, clientData, callData )
+// Muehlhaus layout with crossovers on all 4 sides
+{
+    decl w, s, D, L1, L2;
+    decl dependentParmData;
+
+    w=pcb_get_mks(callData, "w");
+    s=pcb_get_mks(callData, "s");
+    D=pcb_get_mks(callData, "D");
+    decl N1=pcb_get_mks(callData, "N1");		
+    decl N2=pcb_get_mks(callData, "N2");		
+ 
+    decl K1 = K1_square_interleaved;
+    decl K2 = K2_square_interleaved;
+    decl L0 = L0_square_interleaved;
+
+ 
+    if ( (w == NULL ) || (s == NULL) || (N1 == NULL)|| (N2 == NULL)  || (D == NULL))
+    return(dependentParmData);
+
+    if(N1 < 1 )
+    {
+        de_info("Minimum number of turns is N=1.  Value has been reset to 1.");
+	N1=1;
+	dependentParmData=pcb_set_mks(dependentParmData, "N1", N1);
+    }
+
+    if(N2 < 1 )
+    {
+        de_info("Minimum number of turns is N=1.  Value has been reset to 1.");
+	N2=1;
+	dependentParmData=pcb_set_mks(dependentParmData, "N2", N2);
+    }
+
+
+    if(N1 - int(N1) > 0.01)
+    {
+        de_info("Only full turns are allowed.  Converting to nearest full turn.");
+        dependentParmData=pcb_set_mks(dependentParmData, "N1", round(N1));
+    }
+
+    if(N2 - int(N2) > 0.01)
+    {
+        de_info("Only full turns are allowed.  Converting to nearest full turn.");
+        dependentParmData=pcb_set_mks(dependentParmData, "N2", round(N2));
+    }
+
+    
+    
+    // check dimension for valid layout
+    decl D_min = interleaved_min_diameter(N1,N2,w,s, FALSE);
+    
+    // fputs(stderr, strcat("D_min= ", identify_value(D_min)));
+    // fputs(stderr, strcat("D= ", identify_value(D)));
+        
+    if (D < D_min )  
+    {
+      D = D_min + 1e-9;
+      //fputs(stderr, strcat("Updating diameter, new D= ", identify_value(D)));
+      de_info("Diameter too small. Value has been reset.");
+      dependentParmData=pcb_set_mks(dependentParmData, "D", D*1.01);
+      // fputs(stderr, strcat("new dout = ", identify_value(D)));
+    }
+    
+    
+    // calculate estimated inductance
+    // get diamater again, just in case it was corrected
+
+    // layout that symmetric for primary and secondary
+    decl dout = 0.5*(D + (D-w-s));    	// special layout, changes diameter half way!
+    
+    decl N_common = smaller(N1,N2);
+    decl N1_extra  = N1-N_common;
+    decl N2_extra  = N2-N_common;
+        
+    decl din1  = dout - 4*N_common*w - 4*(N_common-1)*s - N1_extra * (w+s);
+    decl din2  = dout - 4*N_common*w - 4*(N_common-1)*s - N2_extra * (w+s);
+    
+    decl davg1 = (dout + din1) / 2;			// average diameter
+    decl davg2 = (dout + din2) / 2;			// average diameter
+    decl rho1  = (dout-din1)/(dout+din1); 		// fill factor
+    decl rho2  = (dout-din2)/(dout+din2); 		// fill factor
+    // modified Wheeler, to match the cal factors in synthesis
+    L1= L0 + K1 * u0 * N1*N1 * davg1 / (1 + K2 * rho1);
+    L2= L0 + K1 * u0 * N2*N2 * davg2 / (1 + K2 * rho2);
+    dependentParmData=pcb_set_mks(dependentParmData, "L1", val(sprintf("%.2e",L1)));
+    dependentParmData=pcb_set_mks(dependentParmData, "L2", val(sprintf("%.2e",L2)));
+   
+
+    return(dependentParmData);
+}
+
+
+
+defun mi_interleaved_universal_calcInductance(cbP, clientData, callData )
+// Muehlhaus layout with crossovers on all 4 sides
+{
+    decl L1, L2, K1, K2, L0;
+    decl dependentParmData;
+
+    decl w=pcb_get_mks(callData, "w");
+    decl s=pcb_get_mks(callData, "s");
+    decl D=pcb_get_mks(callData, "D");
+    decl N1=pcb_get_mks(callData, "N1");		
+    decl N2=pcb_get_mks(callData, "N2");		
+    
+    decl is_octa =  (pcb_get_form_value(callData,"shape") == "OCTAGON");
+    decl is_stacked = (pcb_get_form_value(callData,"stackedlayers")=="YES");
+        
+    if (is_octa) {
+      if (is_stacked) {
+	K1 = K1_octa_interleaved_stacked;
+	K2 = K2_octa_interleaved_stacked;
+	L0 = L0_octa_interleaved_stacked;
+      } else {
+	K1 = K1_octa_interleaved;
+	K2 = K2_octa_interleaved;
+	L0 = L0_octa_interleaved;
+      }
+
+    } else {
+      if (is_stacked) {
+	K1 = K1_square_interleaved_stacked;
+	K2 = K2_square_interleaved_stacked;
+	L0 = L0_square_interleaved_stacked;
+      } else {
+	K1 = K1_square_interleaved;
+	K2 = K2_square_interleaved;
+	L0 = L0_square_interleaved;
+      }
+    }
+
+ 
+    if ( (w == NULL ) || (s == NULL) || (N1 == NULL) || (N2 == NULL) || (D == NULL))
+    return(dependentParmData);
+
+    if(N1 < 1 )
+    {
+        de_info("Minimum number of turns is N=1.  Value has been reset to 1.");
+	N1=1;
+	dependentParmData=pcb_set_mks(dependentParmData, "N1", N1);
+    }
+
+    if(N2 < 1 )
+    {
+        de_info("Minimum number of turns is N=1.  Value has been reset to 1.");
+	N2=1;
+	dependentParmData=pcb_set_mks(dependentParmData, "N1", N1);
+    }
+
+
+    if(N1 - int(N1) > 0.01)
+    {
+        de_info("Only full turns are allowed.  Converting to nearest full turn.");
+        dependentParmData=pcb_set_mks(dependentParmData, "N1", round(N1));
+    }
+
+    if(N2 - int(N2) > 0.01)
+    {
+        de_info("Only full turns are allowed.  Converting to nearest full turn.");
+        dependentParmData=pcb_set_mks(dependentParmData, "N2", round(N2));
+    }
+
+    
+    // enforce N2=N1;
+    // dependentParmData=pcb_set_mks(dependentParmData, "N2", N);
+    
+    // check dimension for valid layout
+    decl D_min = interleaved_min_diameter(N1,N2,w,s, is_octa);
+    
+    // fputs(stderr, strcat("D_min= ", identify_value(D_min)));
+    // fputs(stderr, strcat("D= ", identify_value(D)));
+        
+    if (D < D_min )  
+    {
+      D = D_min + 1e-9;
+      //fputs(stderr, strcat("Updating diameter, new D= ", identify_value(D)));
+      de_info("Diameter too small. Value has been reset.");
+      dependentParmData=pcb_set_mks(dependentParmData, "D", D*1.01);
+      // fputs(stderr, strcat("new dout = ", identify_value(D)));
+    }
+    
+    
+    // calculate estimated inductance
+    // get diamater again, just in case it was corrected
+
+    // layout that symmetric for primary and secondary
+    decl dout = 0.5*(D + (D-w-s));    	// special layout, changes diameter half way!
+    
+    decl N_common = smaller(N1,N2);
+    decl N1_extra  = N1-N_common;
+    decl N2_extra  = N2-N_common;
+        
+    decl din1  = dout - 4*N_common*w - 4*(N_common-1)*s - N1_extra * (w+s);
+    decl din2  = dout - 4*N_common*w - 4*(N_common-1)*s - N2_extra * (w+s);
+    
+    decl davg1 = (dout + din1) / 2;			// average diameter
+    decl davg2 = (dout + din2) / 2;			// average diameter
+    decl rho1  = (dout-din1)/(dout+din1); 		// fill factor
+    decl rho2  = (dout-din2)/(dout+din2); 		// fill factor
+    // modified Wheeler, to match the cal factors in synthesis
+    L1= L0 + K1 * u0 * N1*N1 * davg1 / (1 + K2 * rho1);
+    L2= L0 + K1 * u0 * N2*N2 * davg2 / (1 + K2 * rho2);
+    dependentParmData=pcb_set_mks(dependentParmData, "L1", val(sprintf("%.2e",L1)));
+    dependentParmData=pcb_set_mks(dependentParmData, "L2", val(sprintf("%.2e",L2)));
+   
+
+    return(dependentParmData);
+}
+
+
+
+
+
+
+defun mi_overlay_octa_calcInductance(cbP, clientData, callData )
+// Muehlhaus layout with crossovers on all 4 sides
+{
+    decl w, s, D, L1,L2;
+    decl dependentParmData;
+
+    w=pcb_get_mks(callData, "w");
+    s=pcb_get_mks(callData, "s");
+    D=pcb_get_mks(callData, "D");
+ 
+    decl K1 = K1_octa_overlay;
+    decl K2 = K2_octa_overlay;
+    decl L0 = L0_octa_overlay;
+   
+    // number of turns is fixed N1=2, N2=1, no need to check that
+    
+    // check dimension for valid layout
+    decl D_min = overlay_min_diameter(w,s);
+    
+    // fputs(stderr, strcat("D_min= ", identify_value(D_min)));
+    // fputs(stderr, strcat("D= ", identify_value(D)));
+        
+    if (D < D_min )  
+    {
+      D = D_min + 1e-9;
+      //fputs(stderr, strcat("Updating diameter, new D= ", identify_value(D)));
+      de_info("Diameter too small. Value has been reset.");
+      dependentParmData=pcb_set_mks(dependentParmData, "D", D*1.01);
+      // fputs(stderr, strcat("new dout = ", identify_value(D)));
+    }
+    
+    
+    // calculate estimated inductance
+    // get diamater again, just in case it was corrected
+
+    // layout that symmetric for primary and secondary
+    decl dout = D;    			// outer diameter
+    decl din  = dout - 2*w - 2*s;	//  inner diameter
+    decl davg = (dout + din) / 2;	// average diameter
+    decl rho  = (dout-din)/(dout+din); 	// fill factor
+
+    // modified Wheeler, to match the cal factors in synthesis
+    L1= L0 + K1 * u0 * 2*2 * davg / (1 + K2 * rho);
+    L2= L0 + K1 * u0 * 1*1 * davg / (1 + K2 * rho);
+    dependentParmData=pcb_set_mks(dependentParmData, "L1", val(sprintf("%.2e",L1)));
+    dependentParmData=pcb_set_mks(dependentParmData, "L2", val(sprintf("%.2e",L2)));
+    
+    return(dependentParmData);
+}
+
+
+
+defun mi_interleaved2_octa_calcInductance(cbP, clientData, callData )
+// Coilsys style layout
+{
+    decl w, s, D, L;
+    decl dependentParmData;
+
+    w=pcb_get_mks(callData, "w");
+    s=pcb_get_mks(callData, "s");
+    D=pcb_get_mks(callData, "D");
+    decl N=pcb_get_mks(callData, "N1");		// we use N=N1=N2 here
+ 
+    decl K1 = K1_octa_interleaved;
+    decl K2 = K2_octa_interleaved;
+    decl L0 = L0_octa_interleaved;
+
+ 
+    if ( (w == NULL ) || (s == NULL) || (N == NULL) || (D == NULL))
+    return(dependentParmData);
+
+    if(N <1  )
+    {
+        de_info("Number of primary turns is N=1.  Value has been reset to 1.");
+	N=1;
+	dependentParmData=pcb_set_mks(dependentParmData, "N1", N);
+    }
+
+    if(N - int(N) > 0.01)
+    {
+        de_info("Only full turns are allowed.  Converting to nearest full turn.");
+        dependentParmData=pcb_set_mks(dependentParmData, "N1", round(N));
+    }
+    
+    // enforce N2=N1;
+    dependentParmData=pcb_set_mks(dependentParmData, "N2", N);
+    
+    // check dimension for valid layout
+    decl D_min = interleaved2_octa_min_diameter(N,w,s);
+    
+    // fputs(stderr, strcat("D_min= ", identify_value(D_min)));
+    // fputs(stderr, strcat("D= ", identify_value(D)));
+        
+    if (D < D_min )  
+    {
+      D = D_min + 1e-9;
+      //fputs(stderr, strcat("Updating diameter, new D= ", identify_value(D)));
+      de_info("Diameter too small. Value has been reset.");
+      dependentParmData=pcb_set_mks(dependentParmData, "D", D);
+      // fputs(stderr, strcat("new dout = ", identify_value(D)));
+    }
+    
+    
+    // calculate estimated inductance
+    // get diamater again, just in case it was corrected
+
+    // transformer, so total turns = 2*N
+    
+    if (N>1) {
+      decl dout = D;    					// outer diameter primary
+      decl din  = dout - 2*N*w - 2*(N-1)*s;	//  inner diameter primary
+      decl davg = (dout + din) / 2;			// average diameter
+      decl rho  = (dout-din)/(dout+din); 		// fill factor
+      // modified Wheeler, to match the cal factors in synthesis
+      L= L0 + K1 * u0 * N*N * davg / (1 + K2 * rho);
+      dependentParmData=pcb_set_mks(dependentParmData, "L1", val(sprintf("%.2e",L)));
+
+      dout = dout - 2*w - 2*s;    			// outer diameter
+      din  = din  - 2*w - 2*s;			// inner diameter secondary
+      davg = (dout + din) / 2;			// average diameter
+      rho  = (dout-din)/(dout+din); 		// fill factor
+      // modified Wheeler, to match the cal factors in synthesis
+      L= L0 + K1 * u0 * N*N * davg / (1 + K2 * rho);
+      dependentParmData=pcb_set_mks(dependentParmData, "L2", val(sprintf("%.2e",L)));
+    
+    } else {
+
+      // single turn has special layout that is better in symmetry
+      decl dout = 0.5*((D-w/2) + (D-w/2-w-s));    	// special layout, changes diameter half way!
+      decl din  = dout -w;				// one turn only
+      decl davg = (dout + din) / 2;			// average diameter
+      decl rho  = (dout-din)/(dout+din); 		// fill factor
+      // modified Wheeler, to match the cal factors in synthesis
+      L= L0 + K1 * u0 * N*N * davg / (1 + K2 * rho);
+      dependentParmData=pcb_set_mks(dependentParmData, "L1", val(sprintf("%.2e",L)));
+      dependentParmData=pcb_set_mks(dependentParmData, "L2", val(sprintf("%.2e",L)));
+    }
+
+    return(dependentParmData);
+}
+
+
+
+
+
+
+defun mi_ind_diff_square_calcInductance(cbP, clientData, callData )
+{
+    decl w, s, N, D, L;
+    decl dependentParmData;
+
+    w=pcb_get_mks(callData, "w");
+    s=pcb_get_mks(callData, "s");
+    D=pcb_get_mks(callData, "D");
+    N=pcb_get_mks(callData, "N");
+
+
+    decl K1 = K1_squarediff;
+    decl K2 = K2_squarediff;
+    decl L0 = L0_squarediff;
+    
+    if ( (w == NULL ) || (s == NULL) || (N == NULL) || (D == NULL))
+    return(dependentParmData);
+
+    if(N < 1 )
+    {
+        de_info("Minimum number of turns is N=1.  Value has been reset to 1.");
+		N=2;
+		dependentParmData=pcb_set_mks(dependentParmData, "N", N);
+    }
+
+    if(N - int(N) > 0.01)
+    {
+        de_info("Only full turns are allowed.  Converting to nearest full turn.");
+        dependentParmData=pcb_set_mks(dependentParmData, "N", round(N));
+    }
+
+
+    // check dimension for valid layout
+    decl  D_min = square_min_diameter(N,w,s);
+    
+    // fputs(stderr, strcat("D_min= ", identify_value(D_min)));
+    // fputs(stderr, strcat("D= ", identify_value(D)));
+        
+    if (D < D_min )  
+    {
+      D = D_min + 1e-9;
+      //fputs(stderr, strcat("Updating diameter, new D= ", identify_value(D)));
+      de_info("Diameter too small. Value has been reset.");
+      dependentParmData=pcb_set_mks(dependentParmData, "D", D);
+      // fputs(stderr, strcat("new dout = ", identify_value(D)));
+    }
+
+
+    // calculate estimated inductance
+    // get diamater again, just in case it was corrected
+    decl dout = D;    				// outer diameter
+    decl din  = dout - 2*N*w - 2*(N-1)*s;	//  inner diameter
+    decl davg = (dout + din) / 2;		// average diameter
+    decl rho  = (dout-din)/(dout+din); 		// fill factor
+
+
+    // modified Wheeler, to match the cal factors in synthesis
+    L= L0 + K1 * u0 * N*N * davg / (1 + K2 * rho);
+    dependentParmData=pcb_set_mks(dependentParmData, "L", val(sprintf("%.2e",L)));
+
+    return(dependentParmData);
+}
+
+
+
+defun mi_single_octa_calcInductance(cbP, clientData, callData )
+{
+    decl w, s, N, D, L;
+    decl dependentParmData;
+
+    w=pcb_get_mks(callData, "w");
+    s=pcb_get_mks(callData, "s");
+    D=pcb_get_mks(callData, "D");
+    N=pcb_get_mks(callData, "N");
+
+
+    decl K1 = K1_octasingle;
+    decl K2 = K2_octasingle;
+    decl L0 = L0_octasingle;
+
+    
+    if ( (w == NULL ) || (s == NULL) || (N == NULL) || (D == NULL))
+    return(dependentParmData);
+
+    if(N < 1.49 )
+    {
+        de_info("Minimum number of turns is N=1.5.  Value has been reset to 1.5");
+	N=1.5;
+	dependentParmData=pcb_set_mks(dependentParmData, "N", N);
+    }
+
+    if ((N - int(N) < 0.49) || (N - int(N) > 0.51))
+    {
+        de_info("Only N.5 turns are allowed.  Converting to nearest N.5 turn.");
+        dependentParmData=pcb_set_mks(dependentParmData, "N", floor(N)+0.5);
+    }
+    
+    // check dimension for valid layout
+    decl D_min = octa_single_min_diameter(N,w,s);
+    
+    // fputs(stderr, strcat("D_min= ", identify_value(D_min)));
+    // fputs(stderr, strcat("D= ", identify_value(D)));
+        
+    if (D < D_min )  
+    {
+      D = D_min + 1e-9;
+      //fputs(stderr, strcat("Updating diameter, new D= ", identify_value(D)));
+      de_info("Diameter too small. Value has been reset.");
+      dependentParmData=pcb_set_mks(dependentParmData, "D", D);
+      // fputs(stderr, strcat("new dout = ", identify_value(D)));
+    }
+    
+    
+    // calculate estimated inductance
+    // get diamater again, just in case it was corrected
+
+    decl dout = D;    						// outer diameter
+    decl din  = dout - 2*N*w - 2*(N-1)*s;	//  inner diameter
+    decl davg = (dout + din) / 2;			// average diameter
+    decl rho  = (dout-din)/(dout+din); 		// fill factor
+
+
+    // modified Wheeler, to match the cal factors in synthesis
+    L= L0 + K1 * u0 * N*N * davg / (1 + K2 * rho);
+    dependentParmData=pcb_set_mks(dependentParmData, "L", val(sprintf("%.2e",L)));
+
+    return(dependentParmData);
+}
+
+
+
+defun mi_pH_singleturn_calcInductance(cbP, clientData, callData )
+{
+    decl w, s, N, D, L;
+    decl dependentParmData;
+
+    w=pcb_get_mks(callData, "w");
+    s=pcb_get_mks(callData, "s");
+    D=pcb_get_mks(callData, "D");
+    N=1;  // fixed
+    
+    if ( (w == NULL ) || (s == NULL) || (N == NULL) || (D == NULL))
+    return(dependentParmData);
+
+    
+    // no check for valid layout
+   
+    
+    // calculate estimated inductance
+    // get diamater again, just in case it was corrected
+
+    decl dout = D;    						// outer diameter
+    decl din  = dout - 2*N*w - 2*(N-1)*s;	//  inner diameter
+    decl davg = (dout + din) / 2;			// average diameter
+    decl rho  = (dout-din)/(dout+din); 		// fill factor
+
+
+    // current sheet expression for an octagon spiral
+    L= u0/2*davg*N*N*1.07 * (ln(2.29/rho)+0.0*rho+0.19*rho*rho);
+
+    // modified current sheet expression according to Biondi 2005
+    // "Integrated inductors and transfomers", page 49ff authors Scuderi etc al
+    // L= u0/2*davg* (N*N*1.07 + 0.57/N) * (ln(2.29/rho)+0.0*rho+0.19*rho*rho);
+    // 15.10.2012: Mü tested and found less accurate than original equation
+
+    dependentParmData=pcb_set_mks(dependentParmData, "L", val(sprintf("%.2e",L)));
+
+    return(dependentParmData);
+}
+
+
+
+defun mi_ind_diff_octa_calcDiameter(cbP, clientData, callData )
+{
+    decl w, s, N, D, Dmin, L, Lmin;
+    decl dependentParmData;
+
+    w=pcb_get_mks(callData, "w");
+    s=pcb_get_mks(callData, "s");
+    D=pcb_get_mks(callData, "D");
+    L=pcb_get_mks(callData, "L");
+    N=pcb_get_mks(callData, "N");
+    
+    decl K1 = K1_octadiff;
+    decl K2 = K2_octadiff;
+    decl L0 = L0_octadiff;
+    
+    
+    if ( (w == NULL ) || (s == NULL) || (N == NULL) || (D == NULL))
+    return(dependentParmData);
+
+    if(N < 1 )
+    {
+        de_info("Minimum number of turns is N=1.  Value has been reset to 1.");
+	N=2;
+	dependentParmData=pcb_set_mks(dependentParmData, "N", N);
+    }
+
+    if(N - int(N) > 0.01)
+    {
+        de_info("Only full turns are allowed.  Converting to nearest full turn.");
+        dependentParmData=pcb_set_mks(dependentParmData, "N", round(N));
+    }
+    
+    // check minimum diameter for valid layout
+    decl D_min = octa_min_diameter(N,w,s);
+    
+    // Now we want to get diameter for target L value
+    D = calculate_inductor_diameter (N, w, s, L, K1, K2, L0);
+
+    // calculate estimated MINIMUM inductance
+    // get diamater again, just in case it was corrected
+
+    decl dout = D_min;    						// outer diameter
+    decl din  = dout - 2*N*w - 2*(N-1)*s;	//  inner diameter
+    decl davg = (dout + din) / 2;			// average diameter
+    decl rho  = (dout-din)/(dout+din); 		// fill factor
+
+    // modified Wheeler, to match the cal factors in synthesis
+    Lmin= L0 + K1 * u0 * N*N * davg / (1 + K2 * rho);
+    dependentParmData=pcb_set_mks(dependentParmData, "Lmin", val(sprintf("%.2e",Lmin)));
+        
+        
+    if (D < D_min )  
+    {
+      D = D_min + 1e-9;
+      //fputs(stderr, strcat("Updating diameter, new D= ", identify_value(D)));
+      de_info("Diameter too small. Value has been reset.");
+      // fputs(stderr, strcat("new dout = ", identify_value(D)));
+      dependentParmData=pcb_set_mks(dependentParmData, "L", val(sprintf("%.2e",Lmin)));
+    }
+    
+    // in any case, set new diameter now
+    dependentParmData=pcb_set_mks(dependentParmData, "D", val(sprintf("%.2e",D)));
+    
+ 
+
+    return(dependentParmData);
+}

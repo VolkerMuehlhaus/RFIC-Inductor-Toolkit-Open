@@ -1,0 +1,71 @@
+// -----------------------------------------------------------------------
+//   FILE: boot.ael
+//   This file controls the loading of the design kit
+//   The value of variable designKitRecord is picked up from eesof_lib.cfg
+// -----------------------------------------------------------------------
+
+
+// read and store values from eesof_lib.cfg
+decl MUEHLHAUS_INDUCTOR_PDK_NAME = designKitRecord[0];
+decl MUEHLHAUS_INDUCTOR_PDK_PATH = designKitRecord[1];
+decl MUEHLHAUS_INDUCTOR_PDK_BOOT = designKitRecord[2];
+decl MUEHLHAUS_INDUCTOR_PDK_VER  = designKitRecord[3];
+
+
+// test for ADS2016 and later because we need 2016 features
+decl ADS_version = de_version_number_int();
+fputs(stderr, sprintf("ADS Version: %i", ADS_version));
+
+if (ADS_version >= 450) {
+
+
+  fputs(stderr, strcat("\nLoading ", MUEHLHAUS_INDUCTOR_PDK_NAME," design kit\n"));
+
+
+  // load technology-specific definitions
+  load(strcat(MUEHLHAUS_INDUCTOR_PDK_PATH, "configuration/technology"));
+
+  // load PDK preferences 
+  load(strcat(MUEHLHAUS_INDUCTOR_PDK_PATH, "configuration/preferences"));
+
+  // technology specific, but load after preferences because cal factor depend on ground frame preferences
+  load(strcat(MUEHLHAUS_INDUCTOR_PDK_PATH, "configuration/calibration"));
+
+  // load component artwork
+  load(strcat(MUEHLHAUS_INDUCTOR_PDK_PATH, "circuit/artwork/generic_artwork"));
+
+  // load component callbacks
+  load(strcat(MUEHLHAUS_INDUCTOR_PDK_PATH, "circuit/ael/min_diameter"));
+  load(strcat(MUEHLHAUS_INDUCTOR_PDK_PATH, "circuit/ael/callbacks"));
+
+  // prepare component definitions and forms
+  load(strcat(MUEHLHAUS_INDUCTOR_PDK_PATH, "circuit/ael/custom_forms"));
+
+  // load palette
+  load(strcat(MUEHLHAUS_INDUCTOR_PDK_PATH, "de/ael/palette"));
+
+  // load custom utility functions
+  load(strcat(MUEHLHAUS_INDUCTOR_PDK_PATH, "de/ael/utilities"));
+
+  // user defined tweak of EM statefile
+  load(strcat(MUEHLHAUS_INDUCTOR_PDK_PATH, "configuration/statefile"));
+
+  // load lumped model fitting functions
+  load(strcat(MUEHLHAUS_INDUCTOR_PDK_PATH, "de/ael/lumpedmodel"));
+
+// load history / log functions
+  load(strcat(MUEHLHAUS_INDUCTOR_PDK_PATH, "de/ael/history_file"));
+
+  // load menu
+  load(strcat(MUEHLHAUS_INDUCTOR_PDK_PATH, "de/ael/menu"));
+
+} else {
+
+  decl error_message = strcat("\nERROR loading ", MUEHLHAUS_INDUCTOR_PDK_NAME,":\nWrong ADS version.\nADS 2016 or newer is required.\n");
+  fputs(stderr, error_message);
+  de_info(error_message);
+}
+
+
+
+

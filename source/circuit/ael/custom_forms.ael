@@ -1,0 +1,9 @@
+
+create_constant_form("y_n1", "YES", 0, "1", "yes");
+create_constant_form("y_n0", "NO", 0, "0", "no");
+create_form_set("yes1_no0", "y_n1", "y_n0");
+
+create_constant_form("shape_square", "SQUARE", 0, "1", "square");
+create_constant_form("shape_octa", "OCTAGON", 0, "0", "octagon");
+create_form_set("shape", "shape_octa", "shape_square");
+
