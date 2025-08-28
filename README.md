@@ -16,8 +16,11 @@ Mühlhaus RFIC Inductor Toolkit started as a commercial product. Since August 20
 
 RFIC Inductor Toolkit Open is pre-configured for the GPDK demo technology, it can be customized by the user to support other technologies. 
 
-Download of the pre-configured ADS Designkit:
+Download of the pre-configured ADS Designkit for GPDK technology (including all *.ael source code):
 https://github.com/VolkerMuehlhaus/RFIC-Inductor-Toolkit-Open/tree/main/pdk_ready_for_use
+
+If you are using IHP technology, have a look here:
+https://github.com/VolkerMuehlhaus/RFIC-Inductor-Toolkit-Open/tree/main/license_for_IHP_version
 
 ## Available layout options
 
