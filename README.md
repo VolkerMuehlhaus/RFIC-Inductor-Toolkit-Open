@@ -2,10 +2,9 @@
 
 With ADS Momentum or Sonnet, you can EM simulate an RFIC on-chip inductor if the layout already exists, but how to design the best possible layout? How to find the best inductor layout for your requirements?
 
-Mühlhaus RFIC Inductor Toolkit for ADS does that synthesis for you, and enables you to efficiently design “optimum” inductors.
+This RFIC Inductor Toolkit for ADS does that synthesis for you, and enables you to efficiently design “optimum” inductors.
 
-Your input is the required inductance value and target frequency, as well as geometry limitations. Inductor Toolkit does the work for you: It automatically synthesizes and EM simulates the best possible layout for your requirements. You get DRC clean layout with best possible inductor, within the given geometry limits
-EM accurate simulation results for the inductor. You also get an equivalent circuit model and Spectre *.scs netlist file
+Your input is the required inductance value and target frequency, as well as geometry limitations. Inductor Toolkit does the work for you: It automatically synthesizes and EM simulates the best possible layout for your requirements. You get DRC clean layout with best possible inductor, within the given geometry limits. You also get an equivalent circuit model and Spectre *.scs netlist file
 
 [<img src="./bitmaps/spec_to_layout.png" width="400" />](./bitmaps/spec_to_layout.png)
 
@@ -15,7 +14,7 @@ Mühlhaus RFIC Inductor Toolkit started as a commercial product. Since August 20
 
 ## Download of pre-configured PDK
 
-Mühlhaus RFIC Inductor Toolkit Open is pre-configured for the GPDK demo technology, it can be customized by the user to support other technologies. 
+RFIC Inductor Toolkit Open is pre-configured for the GPDK demo technology, it can be customized by the user to support other technologies. 
 
 Download of the pre-configured ADS Designkit:
 https://github.com/VolkerMuehlhaus/RFIC-Inductor-Toolkit-Open/tree/main/pdk_ready_for_use
